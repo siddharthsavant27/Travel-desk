@@ -3,13 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "setup": "node scripts/setup.mjs",
     "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "eslint",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:workflow": "node scripts/test-workflow.mjs",
+    "test:concierge": "tsx scripts/test-concierge.ts",
+    "test:concierge:browser": "node scripts/test-concierge-browser.mjs",
+    "smoke:concierge": "tsx scripts/smoke-concierge.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -40,5 +45,10 @@
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5"
+  },
+  "overrides": {
+    "@prisma/config": {
+      "deepmerge-ts": "8.0.0"
+    }
   }
 }

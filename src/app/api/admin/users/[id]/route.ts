@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSessionFromRequest, logAuditEvent, generateTemporaryPassword, hashPassword } from "@/lib/auth";
+import { getSessionFromRequest, logAuditEvent, generateTemporaryPassword, hashPassword, clearLoginRateLimits } from "@/lib/auth";
 import { Role } from "@prisma/client";
 
 export async function PATCH(
@@ -54,7 +54,7 @@ export async function PATCH(
 
       const updated = await prisma.user.update({
         where: { id },
-        data: { role: role as Role },
+        data: { role: role as Role, sessionVersion: { increment: 1 } },
         select: { id: true, email: true, name: true, role: true, isActive: true },
       });
 
@@ -70,6 +70,7 @@ export async function PATCH(
 
     // 2. ACTION: TOGGLE_ACTIVE
     if (action === "TOGGLE_ACTIVE") {
+      if (typeof isActive !== "boolean") return NextResponse.json({ error: "isActive must be a boolean." }, { status: 400 });
       const newActiveState = Boolean(isActive);
 
       // Safeguard: Cannot deactivate self
@@ -95,7 +96,7 @@ export async function PATCH(
 
       const updated = await prisma.user.update({
         where: { id },
-        data: { isActive: newActiveState },
+        data: { isActive: newActiveState, sessionVersion: { increment: 1 } },
         select: { id: true, email: true, name: true, role: true, isActive: true },
       });
 
@@ -111,6 +112,7 @@ export async function PATCH(
 
     // 3. ACTION: RESET_PASSWORD
     if (action === "RESET_PASSWORD") {
+      if (targetUser.id === session.userId) return NextResponse.json({ error: "Use Change password to update your own credentials." }, { status: 400 });
       const tempPassword = generateTemporaryPassword();
       const passwordHash = await hashPassword(tempPassword);
 
@@ -121,9 +123,11 @@ export async function PATCH(
           mustChangePassword: true,
           failedLoginAttempts: 0,
           lockedUntil: null,
+          sessionVersion: { increment: 1 },
         },
         select: { id: true, email: true, name: true, role: true, isActive: true, mustChangePassword: true },
       });
+      clearLoginRateLimits(targetUser.email);
 
       await logAuditEvent({
         actorId: session.userId,

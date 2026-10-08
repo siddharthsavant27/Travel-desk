@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import { NotificationBell } from "@/components/NotificationBell";
+import styles from "./Navbar.module.css";
 import { LogOut, KeyRound, Shield, ChevronDown, Menu, X } from "lucide-react";
 
 interface NavbarUser {
@@ -28,10 +29,10 @@ export function Navbar({ user, unreadNotificationsCount = 0 }: NavbarProps) {
   const [switchingRole, setSwitchingRole] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true" && process.env.NODE_ENV !== "production";
   const isLoginPage = pathname === "/login";
 
-  // Track scroll position to strengthen glass fill after 20px
+  // Keep the header clear at the top; reveal soft glass over scrolling content.
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
@@ -78,7 +79,7 @@ export function Navbar({ user, unreadNotificationsCount = 0 }: NavbarProps) {
       });
       if (res.ok) {
         setProfileOpen(false);
-        router.refresh();
+        window.location.assign(targetRole === "CUSTOMER" ? "/dashboard" : "/review");
       }
     } catch (err) {
       console.error("Demo switch failed:", err);
@@ -105,9 +106,14 @@ export function Navbar({ user, unreadNotificationsCount = 0 }: NavbarProps) {
     { label: "Travel Info", href: "/travel-info" },
   ];
 
+  if (user?.role === "CUSTOMER") {
+    navLinks.unshift({ label: "My Applications", href: "/dashboard" });
+  }
+
   if (user && (user.role === "CSR" || user.role === "ADMIN")) {
     navLinks.push({ label: "Review", href: "/review" });
   }
+  if (user?.role === "ADMIN") navLinks.push({ label: "Admin", href: "/admin" });
 
   // Sign-in page = dedicated minimal header handled in login page
   if (isLoginPage) {
@@ -115,29 +121,26 @@ export function Navbar({ user, unreadNotificationsCount = 0 }: NavbarProps) {
   }
 
   return (
-    <header className="sticky top-0 left-0 right-0 z-50 w-full transition-all duration-300">
+    <header className="sticky top-0 left-0 right-0 z-50 w-full">
       <div
-        className={`w-full transition-all duration-300 ${
-          scrolled
-            ? "bg-[#071426]/35 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.25)]"
-            : "bg-transparent"
-        }`}
+        className={`w-full ${styles.glassSurface} ${scrolled ? styles.scrolled : ""} ${mobileMenuOpen ? styles.menuOpen : ""}`}
       >
-        <div className="w-full px-4 sm:px-6 lg:px-8 h-16 sm:h-[68px] flex items-center justify-between">
+        <div className="w-full px-4 sm:px-6 h-[72px] flex items-center justify-between gap-4 lg:grid lg:grid-cols-[1fr_auto_1fr]">
           {/* Left: Brand Logo & Wordmark (Corner-aligned) */}
-          <div className="flex items-center">
+          <div className="flex items-center justify-self-start">
             <Logo />
           </div>
 
           {/* Center: Minimalist Stitch-style Navigation Links */}
-          <nav className="hidden md:flex items-center gap-8 lg:gap-10" aria-label="Main Navigation">
+          <nav className="hidden lg:flex items-center justify-center gap-6 xl:gap-8" aria-label="Main Navigation">
             {navLinks.map((link) => {
               const isActive = pathname === link.href || (link.href !== "/" && pathname.startsWith(link.href));
               return (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`text-[13px] sm:text-sm font-medium transition-colors duration-150 relative py-1 ${
+                  aria-current={isActive ? "page" : undefined}
+                  className={`text-[13px] font-medium transition-colors duration-150 relative py-3 whitespace-nowrap ${
                     isActive
                       ? "text-white font-semibold after:absolute after:-bottom-1 after:left-0 after:w-full after:h-0.5 after:bg-[#4fdbc8] after:rounded-full"
                       : "text-white/70 hover:text-white"
@@ -150,7 +153,7 @@ export function Navbar({ user, unreadNotificationsCount = 0 }: NavbarProps) {
           </nav>
 
           {/* Right: Stitch-style Action Area */}
-          <div className="flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-3 justify-self-end">
             {user ? (
               <>
                 {/* Notification Bell */}
@@ -160,7 +163,7 @@ export function Navbar({ user, unreadNotificationsCount = 0 }: NavbarProps) {
                 <div className="relative" ref={dropdownRef}>
                   <button
                     onClick={() => setProfileOpen(!profileOpen)}
-                    className="flex items-center gap-2 p-1 pl-1.5 pr-2.5 rounded-full border border-white/15 bg-white/5 hover:bg-white/10 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-teal)]"
+                    className="glass-control flex min-h-11 items-center gap-2 p-1 pl-1.5 pr-2.5 rounded-full border border-white/15 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-teal)]"
                     aria-expanded={profileOpen}
                     aria-haspopup="true"
                     aria-label="User profile and account settings"
@@ -190,11 +193,11 @@ export function Navbar({ user, unreadNotificationsCount = 0 }: NavbarProps) {
                       {/* Navigation Actions */}
                       <div className="py-2 space-y-1">
                         <Link
-                          href="/dashboard"
+                          href={user.role === "CUSTOMER" ? "/dashboard" : "/review"}
                           onClick={() => setProfileOpen(false)}
                           className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-[var(--foreground)] hover:bg-white/10 hover:text-white transition-colors"
                         >
-                          <span>Dashboard</span>
+                          <span>{user.role === "CUSTOMER" ? "My applications" : "Review queue"}</span>
                         </Link>
                         <Link
                           href="/change-password"
@@ -259,7 +262,7 @@ export function Navbar({ user, unreadNotificationsCount = 0 }: NavbarProps) {
               /* Stitch-style High-Contrast White Pill Button */
               <Link
                 href="/login"
-                className="inline-flex items-center justify-center px-5 py-2 rounded-full text-xs sm:text-[13px] font-semibold bg-white text-[#071426] hover:bg-white/90 active:scale-95 transition-all duration-150 shadow-sm"
+                className="inline-flex min-h-11 items-center justify-center px-5 py-2 rounded-full text-xs sm:text-[13px] font-semibold bg-white text-[#071426] hover:bg-white/90 active:scale-95 transition-all duration-150 shadow-sm"
               >
                 Sign in
               </Link>
@@ -269,9 +272,10 @@ export function Navbar({ user, unreadNotificationsCount = 0 }: NavbarProps) {
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+              className="lg:hidden order-first p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
               aria-label="Toggle navigation menu"
               aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-navigation"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -280,13 +284,14 @@ export function Navbar({ user, unreadNotificationsCount = 0 }: NavbarProps) {
 
         {/* Mobile Slide-down Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden px-6 pt-2 pb-6 bg-[#071426]/90 backdrop-blur-2xl shadow-2xl flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-150">
+          <nav id="mobile-navigation" aria-label="Mobile navigation" className="lg:hidden px-4 sm:px-6 pt-2 pb-5 flex flex-col gap-1">
             {navLinks.map((link) => {
               const isActive = pathname === link.href || (link.href !== "/" && pathname.startsWith(link.href));
               return (
                 <Link
                   key={link.href}
                   href={link.href}
+                  aria-current={isActive ? "page" : undefined}
                   onClick={() => setMobileMenuOpen(false)}
                   className={`text-sm font-medium py-2 px-3 rounded-lg transition-colors ${
                     isActive
@@ -309,7 +314,7 @@ export function Navbar({ user, unreadNotificationsCount = 0 }: NavbarProps) {
                 </Link>
               </div>
             )}
-          </div>
+          </nav>
         )}
       </div>
     </header>

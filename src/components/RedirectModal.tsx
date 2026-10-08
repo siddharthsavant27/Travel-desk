@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { ExternalLink, ShieldCheck, AlertCircle, X } from "lucide-react";
 
 interface RedirectModalProps {
@@ -25,6 +25,20 @@ export function RedirectModal({
   category,
   searchSummary,
 }: RedirectModalProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    panelRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      previousFocus?.focus();
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleContinue = () => {
@@ -33,31 +47,54 @@ export function RedirectModal({
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-labelledby="redirect-modal-title"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") onClose();
+        if (event.key !== "Tab") return;
+        const controls = panelRef.current?.querySelectorAll<HTMLButtonElement>(
+          "button:not(:disabled)",
+        );
+        if (!controls?.length) return;
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }}
     >
-      <div className="glass-panel w-full max-w-lg p-6 sm:p-8 space-y-6 animate-in fade-in zoom-in-95 duration-200 shadow-2xl border border-[var(--border)]">
+      <div
+        ref={panelRef}
+        className="glass-panel w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto p-5 sm:p-8 space-y-5 shadow-2xl border border-[var(--border)]"
+      >
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[var(--brand-teal)]/15 text-[var(--brand-teal)] flex items-center justify-center">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="w-10 h-10 shrink-0 rounded-xl bg-[var(--brand-teal)]/15 text-[var(--brand-teal)] flex items-center justify-center">
               <ExternalLink className="w-5 h-5" />
             </div>
             <div>
               <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--brand-teal)]">
-                Corporate Redirection Dispatch
+                Continue to partner
               </span>
-              <h2 id="redirect-modal-title" className="font-serif text-xl font-medium text-[var(--foreground)]">
+              <h2
+                id="redirect-modal-title"
+                className="font-serif text-xl font-medium text-[var(--foreground)]"
+              >
                 Redirecting to {partnerName}
               </h2>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--glass-fill)] transition-colors"
+            className="p-3 shrink-0 rounded-lg text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--glass-fill)] transition-colors"
             aria-label="Close redirect modal"
           >
             <X className="w-5 h-5" />
@@ -66,19 +103,26 @@ export function RedirectModal({
 
         {/* Search Parameter Summary Card */}
         <div className="p-4 rounded-xl bg-[var(--glass-fill-nested)] border border-[var(--glass-border)] space-y-2 text-xs">
-          <div className="flex justify-between items-center text-[var(--foreground-muted)]">
+          <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-3 text-[var(--foreground-muted)]">
             <span>Routing</span>
             <span className="font-semibold text-[var(--foreground)]">
-              {searchSummary.origin ? `${searchSummary.origin} → ` : ""}{searchSummary.destination}
+              {searchSummary.origin ? `${searchSummary.origin} → ` : ""}
+              {searchSummary.destination}
             </span>
           </div>
-          <div className="flex justify-between items-center text-[var(--foreground-muted)]">
+          <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-3 text-[var(--foreground-muted)]">
             <span>Schedule</span>
-            <span className="font-semibold text-[var(--foreground)]">{searchSummary.dates}</span>
+            <span className="font-semibold text-[var(--foreground)]">
+              {searchSummary.dates}
+            </span>
           </div>
-          <div className="flex justify-between items-center text-[var(--foreground-muted)]">
-            <span>{category === "flight" ? "Permitted Class" : "Accommodations"}</span>
-            <span className="font-semibold text-[var(--foreground)]">{searchSummary.classOrGuests}</span>
+          <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-3 text-[var(--foreground-muted)]">
+            <span>
+              {category === "flight" ? "Permitted Class" : "Accommodations"}
+            </span>
+            <span className="font-semibold text-[var(--foreground)]">
+              {searchSummary.classOrGuests}
+            </span>
           </div>
         </div>
 
@@ -86,10 +130,13 @@ export function RedirectModal({
         <div className="p-3.5 rounded-xl bg-[var(--brand-teal)]/10 border border-[var(--brand-teal)]/20 space-y-1.5 text-xs text-[var(--foreground-muted)]">
           <div className="flex items-center gap-2 font-medium text-[var(--brand-teal)]">
             <ShieldCheck className="w-4 h-4 shrink-0" />
-            <span>Zero Markup & Direct Corporate Compliance</span>
+            <span>Booking happens on the partner’s website</span>
           </div>
           <p className="leading-relaxed">
-            TravelDesk does not add commissions, markups, or artificial booking fees. You will be redirected directly to {partnerName}&apos;s verified portal. Final inventory availability, flight schedules, baggage policies, and fare terms are governed directly by the provider.
+            {partnerName} opens in a new tab. Your search is prefilled with the
+            trip details shown above. Review them on the partner’s site. Check
+            final prices, cancellation terms, and baggage or room conditions
+            before booking.
           </p>
         </div>
 
@@ -97,7 +144,8 @@ export function RedirectModal({
         <div className="flex items-start gap-2.5 text-xs text-[var(--foreground-muted)]">
           <AlertCircle className="w-4 h-4 text-[var(--brand-amber)] shrink-0 mt-0.5" />
           <span>
-            Remember to request a corporate tax invoice in the name of <strong>Harbinger Group Holdings Ltd</strong> for expense reporting and corporate reimbursement.
+            Keep your booking confirmation and invoice, and follow your
+            company’s expense process.
           </span>
         </div>
 

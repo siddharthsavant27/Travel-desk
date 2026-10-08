@@ -1,22 +1,11 @@
 "use client";
 
-import { Suspense, useState, useEffect, useRef } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { 
-  Compass, 
-  ArrowRight, 
-  CheckCircle2, 
-  AlertTriangle, 
-  ExternalLink, 
-  Building2, 
-  FileText, 
-  Clock, 
-  ShieldCheck, 
-  HelpCircle,
-  RotateCcw,
-  Sparkles
-} from "lucide-react";
+import { PageHeading } from "@/components/PageHeading";
+import { Disclosure } from "@/components/Disclosure";
+import { ArrowRight, CheckCircle2, AlertTriangle, ExternalLink, ShieldCheck, RotateCcw, Sparkles } from "lucide-react";
 
 type Destination = "GERMANY" | "USA";
 type Purpose = "MEETINGS" | "CONFERENCE" | "TRANSFER" | "LOCAL_WORK" | "TOURISM";
@@ -27,11 +16,6 @@ function VisaNavigatorContent() {
   const searchParams = useSearchParams();
   const promptParam = searchParams.get("prompt") || searchParams.get("q") || "";
 
-  // Dual background refs & section anchor
-  const primaryBgRef = useRef<HTMLDivElement>(null);
-  const secondaryBgRef = useRef<HTMLDivElement>(null);
-  const directorySectionRef = useRef<HTMLElement>(null);
-
   // Wizard state
   const [destination, setDestination] = useState<Destination>("GERMANY");
   const [purpose, setPurpose] = useState<Purpose>("MEETINGS");
@@ -39,62 +23,12 @@ function VisaNavigatorContent() {
   const [tenure, setTenure] = useState<Tenure>("OVER_ONE_YEAR");
   const [analyzedPrompt, setAnalyzedPrompt] = useState<string>("");
 
-  // Smooth scroll animation for dual background images:
-  // Primary image zooms gently and slides with parallax in the top section
-  // Transition seamlessly crossfades / slides into the secondary airport lounge image as user explores down into the directory
-  useEffect(() => {
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefersReducedMotion) return;
-
-    let ticking = false;
-
-    const handleScroll = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          const scrollY = window.pageYOffset || document.documentElement.scrollTop;
-          const maxScroll = Math.max(document.documentElement.scrollHeight - window.innerHeight, 800);
-          const scrollRatio = Math.min(Math.max(scrollY / maxScroll, 0), 1);
-
-          // Primary image subtle zoom and parallax translation
-          if (primaryBgRef.current) {
-            const primaryScale = 1.0 + scrollRatio * 0.18;
-            const primaryTranslateY = scrollY * 0.28;
-            const primaryOpacity = Math.max(1 - scrollRatio * 1.4, 0);
-            primaryBgRef.current.style.transform = `translate3d(0, ${primaryTranslateY.toFixed(2)}px, 0) scale(${primaryScale.toFixed(4)})`;
-            primaryBgRef.current.style.opacity = primaryOpacity.toFixed(3);
-          }
-
-          // Secondary image emerges smoothly as user scrolls towards the bottom sections
-          if (secondaryBgRef.current) {
-            const secondaryScale = 1.15 - (1 - scrollRatio) * 0.12;
-            const secondaryTranslateY = -((1 - scrollRatio) * 60);
-            const secondaryOpacity = Math.min(Math.max((scrollRatio - 0.2) * 1.5, 0), 0.95);
-            secondaryBgRef.current.style.transform = `translate3d(0, ${secondaryTranslateY.toFixed(2)}px, 0) scale(${secondaryScale.toFixed(4)})`;
-            secondaryBgRef.current.style.opacity = secondaryOpacity.toFixed(3);
-          }
-
-          ticking = false;
-        });
-        ticking = true;
-      }
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    window.addEventListener("resize", handleScroll, { passive: true });
-    handleScroll();
-
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("resize", handleScroll);
-    };
-  }, []);
-
   // Parse prompt prefill if present
   useEffect(() => {
     if (promptParam) {
       setAnalyzedPrompt(promptParam);
       const lower = promptParam.toLowerCase();
-      if (lower.includes("us") || lower.includes("america") || lower.includes("york") || lower.includes("b-1") || lower.includes("h-1b") || lower.includes("l-1")) {
+      if (/\b(u\.?s\.?a?|united states|america|new york|b-?1|h-?1b|l-?1)\b/.test(lower)) {
         setDestination("USA");
       } else if (lower.includes("germany") || lower.includes("munich") || lower.includes("frankfurt") || lower.includes("schengen")) {
         setDestination("GERMANY");
@@ -166,7 +100,7 @@ function VisaNavigatorContent() {
     // USA evaluation
     if (purpose === "TRANSFER") {
       return {
-        category: "US L-1 Intra-Company Transferee (L-1A / L-1B)",
+        category: "US L-1 Intra-company transfer (L-1A / L-1B)",
         typeKey: "US_L1",
         isPermittedUnderBusiness: true,
         summary: "For intra-company transferees transferring from Harbinger Group India to an affiliated US entity in an executive, managerial (L-1A), or specialized knowledge (L-1B) capacity.",
@@ -239,75 +173,9 @@ function VisaNavigatorContent() {
   const evaluation = evaluateRoute();
 
   return (
-    <div className="relative flex flex-col w-full min-h-screen">
-      {/* CINEMATIC DUAL AIRPORT LOUNGE BACKGROUND CANVASES WITH SCROLL ANIMATION */}
-      <div 
-        className="fixed inset-0 pointer-events-none z-0 overflow-hidden" 
-        aria-hidden="true"
-      >
-        {/* Primary Visa Lounge Image (visa_page.png) */}
-        <div
-          id="visa-primary-bg"
-          ref={primaryBgRef}
-          className="absolute inset-0 w-full h-full will-change-transform select-none transition-opacity duration-300"
-          style={{
-            transformOrigin: "center 40%",
-            transform: "translate3d(0, 0, 0) scale(1)",
-            backfaceVisibility: "hidden",
-            WebkitBackfaceVisibility: "hidden",
-          }}
-        >
-          <img
-            src="/images/visa_page.png"
-            alt=""
-            className="w-full h-full object-cover object-[center_35%] pointer-events-none brightness-90"
-            decoding="async"
-            loading="eager"
-          />
-        </div>
-
-        {/* Secondary Executive Lounge Image (visa_page_secondary.png) below / crossfading on scroll */}
-        <div
-          id="visa-secondary-bg"
-          ref={secondaryBgRef}
-          className="absolute inset-0 w-full h-full will-change-transform select-none transition-opacity duration-300"
-          style={{
-            transformOrigin: "center 60%",
-            transform: "translate3d(0, 0, 0) scale(1.05)",
-            opacity: 0,
-            backfaceVisibility: "hidden",
-            WebkitBackfaceVisibility: "hidden",
-          }}
-        >
-          <img
-            src="/images/visa_page_secondary.png"
-            alt=""
-            className="w-full h-full object-cover object-[center_50%] pointer-events-none brightness-85"
-            decoding="async"
-            loading="lazy"
-          />
-        </div>
-
-        {/* Scrim & atmospheric gradient layers: preserve contrast, text legibility and deep dark aesthetic */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#071426]/85 via-[#071426]/60 to-[#071426]/90 pointer-events-none" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_25%,_#071426_94%)] pointer-events-none" />
-      </div>
-
-      {/* Main Visa Navigator Content Container */}
-      <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-12 space-y-12 w-full">
-        {/* Header */}
-        <div className="text-center max-w-3xl mx-auto space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[var(--brand-teal)]/30 bg-[var(--brand-teal)]/10 text-[var(--brand-teal)] text-xs font-semibold uppercase tracking-wider backdrop-blur-md">
-            <Compass className="w-3.5 h-3.5" />
-            <span>Statutory Route Pre-Screening</span>
-          </div>
-          <h1 className="font-serif text-3xl sm:text-4xl font-normal text-[var(--foreground)] tracking-tight">
-            Visa Category Navigator & Eligibility Engine
-          </h1>
-        <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">
-          Determine the correct consular visa classification for corporate business travel to Germany (Schengen Area) and the United States. All rules, fees, and timelines are cross-referenced with official consular portals.
-        </p>
-      </div>
+    <div className="page-shell">
+      <div className="space-y-6">
+        <PageHeading eyebrow="Visa preparation" title="Find the right visa route" description="Tell us about your business trip to Germany or the United States. See the suggested category and what to prepare next." />
 
       {/* Prompt Banner if user came from Landing prompt box */}
       {analyzedPrompt && (
@@ -330,13 +198,13 @@ function VisaNavigatorContent() {
       )}
 
       {/* Main Grid: Inputs (Left) and Evaluation Output (Right) Side-by-Side */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Interactive Wizard Controls */}
-        <div className="lg:col-span-5 glass-panel p-6 sm:p-7 space-y-6 border border-[var(--glass-border)] flex flex-col justify-between h-full">
+        <div className="lg:col-span-5 glass-panel p-5 sm:p-6 space-y-6 border border-[var(--glass-border)]">
           <div className="space-y-6">
             <div className="flex items-center justify-between pb-4 border-b border-[var(--glass-border)]">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--foreground)] flex items-center gap-2">
-                <span>Travel Parameters</span>
+                <span>Your trip details</span>
               </h2>
             <button
               type="button"
@@ -356,13 +224,14 @@ function VisaNavigatorContent() {
           {/* 1. Destination */}
           <div className="space-y-2">
             <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--foreground-muted)]">
-              1. Destination Country
+              Destination
             </label>
             <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
                 id="dest-germany-btn"
                 onClick={() => setDestination("GERMANY")}
+                aria-pressed={destination === "GERMANY"}
                 className={`p-3 rounded-lg border text-left text-xs font-medium transition-all ${
                   destination === "GERMANY"
                     ? "border-[var(--brand-teal)] bg-[var(--brand-teal)]/15 text-[var(--foreground)] ring-1 ring-[var(--brand-teal)]"
@@ -376,6 +245,7 @@ function VisaNavigatorContent() {
                 type="button"
                 id="dest-usa-btn"
                 onClick={() => setDestination("USA")}
+                aria-pressed={destination === "USA"}
                 className={`p-3 rounded-lg border text-left text-xs font-medium transition-all ${
                   destination === "USA"
                     ? "border-[var(--brand-teal)] bg-[var(--brand-teal)]/15 text-[var(--foreground)] ring-1 ring-[var(--brand-teal)]"
@@ -391,27 +261,28 @@ function VisaNavigatorContent() {
           {/* 2. Primary Commercial Purpose */}
           <div className="space-y-2">
             <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--foreground-muted)]">
-              2. Commercial Travel Purpose
+              Purpose of travel
             </label>
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
               {[
-                { key: "MEETINGS", label: "Client Meetings & Commercial Negotiations", desc: "Non-productive business discussions and contracts" },
-                { key: "CONFERENCE", label: "Tech Conference, Expo or Industrial Summit", desc: "Attending professional seminars or exhibitions" },
-                { key: "TRANSFER", label: "Intra-Company Transferee", desc: "Transferring to US affiliate as manager or specialist" },
-                { key: "LOCAL_WORK", label: "Direct Hands-On Work / Productive Labor", desc: "Billable client engineering or local payroll" }
+                { key: "MEETINGS", label: "Client meetings", desc: "Non-productive business discussions and contracts" },
+                { key: "CONFERENCE", label: "Conference or event", desc: "Attending professional seminars or exhibitions" },
+                { key: "TRANSFER", label: "Intra-Company Transferee", desc: "Move to an affiliated office" },
+                { key: "LOCAL_WORK", label: "Hands-on work", desc: "Billable client engineering or local payroll" }
               ].map((item) => (
                 <button
                   key={item.key}
                   type="button"
                   id={`purpose-${item.key.toLowerCase()}-btn`}
                   onClick={() => setPurpose(item.key as Purpose)}
+                  aria-pressed={purpose === item.key}
                   className={`w-full p-3 rounded-lg border text-left text-xs transition-all ${
                     purpose === item.key
                       ? "border-[var(--brand-teal)] bg-[var(--brand-teal)]/15 text-[var(--foreground)] ring-1 ring-[var(--brand-teal)]"
                       : "border-[var(--glass-border)] bg-[var(--glass-fill)] hover:bg-[var(--glass-fill-hover)] text-[var(--foreground-muted)]"
                   }`}
                 >
-                  <div className="font-medium text-xs mb-0.5">{item.label}</div>
+                  <div className="font-medium text-sm mb-0.5">{item.label}</div>
                   <div className="text-[11px] text-[var(--foreground-subtle)]">{item.desc}</div>
                 </button>
               ))}
@@ -421,13 +292,14 @@ function VisaNavigatorContent() {
           {/* 3. Duration of Stay */}
           <div className="space-y-2">
             <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--foreground-muted)]">
-              3. Proposed Duration
+              Duration of stay
             </label>
             <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
                 id="duration-short-btn"
                 onClick={() => setDuration("SHORT_STAY")}
+                aria-pressed={duration === "SHORT_STAY"}
                 className={`p-3 rounded-lg border text-left text-xs transition-all ${
                   duration === "SHORT_STAY"
                     ? "border-[var(--brand-teal)] bg-[var(--brand-teal)]/15 text-[var(--foreground)] ring-1 ring-[var(--brand-teal)]"
@@ -441,6 +313,7 @@ function VisaNavigatorContent() {
                 type="button"
                 id="duration-long-btn"
                 onClick={() => setDuration("LONG_STAY")}
+                aria-pressed={duration === "LONG_STAY"}
                 className={`p-3 rounded-lg border text-left text-xs transition-all ${
                   duration === "LONG_STAY"
                     ? "border-[var(--brand-teal)] bg-[var(--brand-teal)]/15 text-[var(--foreground)] ring-1 ring-[var(--brand-teal)]"
@@ -453,10 +326,11 @@ function VisaNavigatorContent() {
             </div>
           </div>
 
+          {destination === "USA" && purpose === "TRANSFER" && (<>
           {/* 4. Company Tenure */}
           <div className="space-y-2">
             <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--foreground-muted)]">
-              4. Employment Tenure at Harbinger
+              Time with Harbinger
             </label>
             <div className="grid grid-cols-3 gap-2">
               {[
@@ -468,6 +342,7 @@ function VisaNavigatorContent() {
                   key={t.key}
                   type="button"
                   onClick={() => setTenure(t.key as Tenure)}
+                  aria-pressed={tenure === t.key}
                   className={`p-2.5 rounded-lg border text-center text-xs font-medium transition-all ${
                     tenure === t.key
                       ? "border-[var(--brand-teal)] bg-[var(--brand-teal)]/15 text-[var(--foreground)]"
@@ -479,18 +354,19 @@ function VisaNavigatorContent() {
               ))}
             </div>
           </div>
+          </>)}
           </div>
         </div>
 
         {/* Right Column: Deterministic Evaluation Results */}
-        <div className="lg:col-span-7 space-y-6">
-          <div className="glass-panel p-7 space-y-6 border border-[var(--glass-border)] relative">
+        <div className="lg:col-span-7 space-y-6 lg:sticky lg:top-24">
+          <div className="glass-panel p-5 sm:p-7 space-y-5 border border-[var(--glass-border)] relative">
             {/* Category Badge & Title */}
             <div>
               <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[var(--brand-teal)]/15 text-[var(--brand-teal)] border border-[var(--brand-teal)]/30">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Recommended Consular Category</span>
+                  <span>Suggested visa route</span>
                 </span>
                 <span className="text-[11px] text-[var(--foreground-subtle)]">
                   Last verified: {evaluation.lastVerified}
@@ -503,7 +379,7 @@ function VisaNavigatorContent() {
 
             {/* Warning if non-permitted labor */}
             {evaluation.warning && (
-              <div className="p-4 rounded-xl border border-[var(--brand-ruby)]/40 bg-[var(--brand-ruby)]/10 text-xs text-[var(--brand-ruby)] flex items-start gap-3">
+              <div className="p-4 rounded-xl border border-[var(--brand-ruby)]/40 bg-[var(--brand-ruby)]/10 text-sm text-red-200 flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <span className="font-semibold block">Regulatory Compliance Notice:</span>
@@ -517,11 +393,23 @@ function VisaNavigatorContent() {
               {evaluation.summary}
             </p>
 
+            {/* Action CTA */}
+            {(
+              <div className="pt-4">
+                <Link
+                  href={"/applications/new?" + new URLSearchParams({ visaType: evaluation.typeKey, purpose: analyzedPrompt || `${purpose.replaceAll("_", " ").toLowerCase()} in ${destination === "GERMANY" ? "Germany" : "the United States"}` }).toString()}
+                  className="primary-button w-full"
+                >
+                  <span>{evaluation.interviewEligible ? "Start pre-screening" : "Start specialist intake"}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
+            )}
             {/* Statutory Consular Specs Table */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2">
               <div className="p-3.5 rounded-lg border border-[var(--glass-border)] bg-[var(--canvas-bg-alt)]/40 space-y-1">
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--foreground-subtle)]">
-                  Issuing Consular Authority
+                  Issuing authority
                 </div>
                 <div className="text-xs font-medium text-[var(--foreground)]">
                   {evaluation.authority}
@@ -529,7 +417,7 @@ function VisaNavigatorContent() {
               </div>
               <div className="p-3.5 rounded-lg border border-[var(--glass-border)] bg-[var(--canvas-bg-alt)]/40 space-y-1">
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--foreground-subtle)]">
-                  Official Visa Fee
+                  Application fee
                 </div>
                 <div className="text-xs font-medium text-[var(--foreground)]">
                   {evaluation.fee}
@@ -541,19 +429,14 @@ function VisaNavigatorContent() {
             <div className="p-4 rounded-lg border border-[var(--brand-indigo)]/30 bg-[var(--brand-indigo)]/5 space-y-1.5">
               <div className="flex items-center gap-2 text-xs font-semibold text-[var(--brand-indigo)] uppercase tracking-wider">
                 <ShieldCheck className="w-4 h-4" />
-                <span>Statutory Passport Validity Rule</span>
+                <span>Passport validity</span>
               </div>
               <p className="text-xs text-[var(--foreground-muted)] leading-relaxed">
                 {evaluation.passportRule}
               </p>
             </div>
 
-            {/* Mandatory Documentation Checklist */}
-            <div className="space-y-3 pt-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--foreground)] flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[var(--brand-teal)]" />
-                <span>Mandatory Documentation Checklist</span>
-              </h3>
+            <Disclosure key={evaluation.typeKey} title={`Documents to prepare (${evaluation.checklist.length})`}>
               <ul className="space-y-2 text-xs text-[var(--foreground-muted)]">
                 {evaluation.checklist.map((doc, idx) => (
                   <li key={idx} className="flex items-start gap-2.5">
@@ -562,7 +445,7 @@ function VisaNavigatorContent() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </Disclosure>
 
             {/* Official Source Link Citation */}
             <div className="pt-4 border-t border-[var(--glass-border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
@@ -572,126 +455,19 @@ function VisaNavigatorContent() {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 text-[var(--brand-teal)] hover:underline font-medium"
               >
-                <span>Official Consular Portal: {evaluation.officialSourceName}</span>
+                <span>View official guidance</span>
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>
-              <span className="text-[11px] text-[var(--foreground-subtle)]">
-                Rule verified against consular directives
-              </span>
+
             </div>
 
-            {/* Action CTA */}
-            {evaluation.interviewEligible && evaluation.interviewUrl && (
-              <div className="pt-4">
-                <Link
-                  href={evaluation.interviewUrl}
-                  className="w-full py-3.5 px-6 rounded-lg text-sm font-semibold bg-[var(--brand-teal)] hover:bg-[var(--brand-teal-hover)] text-[#071426] flex items-center justify-center gap-2 transition-all shadow-lg active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-teal)]"
-                >
-                  <span>Launch Pre-Screening Interview for {evaluation.category.split("(")[0].trim()}</span>
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-              </div>
-            )}
           </div>
         </div>
       </div>
 
-      {/* Directory of Verified Consular Regulations */}
-      <section className="space-y-6 pt-6 border-t border-[var(--glass-border)]">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-serif font-medium text-[var(--foreground)]">
-              Official Consular Directory & Policy References
-            </h2>
-            <p className="text-xs text-[var(--foreground-muted)]">
-              Consular guidelines are strictly referenced from statutory sources. No estimated or invented timelines.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/visas/info"
-              className="text-xs font-semibold text-[var(--brand-teal)] hover:underline inline-flex items-center gap-1"
-            >
-              <span>View Full Visa Policy Directory</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {/* Card 1: German Missions in India */}
-          <div className="glass-card p-5 space-y-3 border border-[var(--glass-border)]">
-            <div className="flex items-center justify-between text-xs text-[var(--foreground-subtle)]">
-              <span className="font-semibold uppercase tracking-wider text-[var(--foreground)]">Germany (Schengen)</span>
-              <span>Updated June 2024</span>
-            </div>
-            <h3 className="text-sm font-semibold text-[var(--foreground)]">
-              Federal Foreign Office (Auswärtiges Amt)
-            </h3>
-            <p className="text-xs text-[var(--foreground-muted)] leading-relaxed">
-              Standard Schengen business fee: €90. Travel insurance minimum €30,000. Stays limited to 90 days per 180 days. Passport valid 3 months past departure.
-            </p>
-            <div className="pt-2">
-              <a
-                href="https://india.diplo.de/in-en/service/business-visa/1987516"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-[var(--brand-teal)] hover:underline inline-flex items-center gap-1"
-              >
-                <span>Consular Business Guidelines</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-          </div>
-
-          {/* Card 2: US Department of State */}
-          <div className="glass-card p-5 space-y-3 border border-[var(--glass-border)]">
-            <div className="flex items-center justify-between text-xs text-[var(--foreground-subtle)]">
-              <span className="font-semibold uppercase tracking-wider text-[var(--foreground)]">United States (B-1)</span>
-              <span>Updated June 2023</span>
-            </div>
-            <h3 className="text-sm font-semibold text-[var(--foreground)]">
-              U.S. Department of State - Consular Affairs
-            </h3>
-            <p className="text-xs text-[var(--foreground-muted)] leading-relaxed">
-              Standard B-1 MRV fee: $185 USD. Indian passports are exempt from the 6-month validity rule under the Six-Month Club Agreement. Productive labor prohibited.
-            </p>
-            <div className="pt-2">
-              <a
-                href="https://travel.state.gov/content/travel/en/us-visas/tourism-visit/visitor.html"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-[var(--brand-teal)] hover:underline inline-flex items-center gap-1"
-              >
-                <span>B-1 Visitor Visa Directives</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-          </div>
-
-          {/* Card 3: Passport Seva India */}
-          <div className="glass-card p-5 space-y-3 border border-[var(--glass-border)]">
-            <div className="flex items-center justify-between text-xs text-[var(--foreground-subtle)]">
-              <span className="font-semibold uppercase tracking-wider text-[var(--foreground)]">Passport Validity</span>
-              <span>Ministry of External Affairs</span>
-            </div>
-            <h3 className="text-sm font-semibold text-[var(--foreground)]">
-              Passport Seva India (CPV Division)
-            </h3>
-            <p className="text-xs text-[var(--foreground-muted)] leading-relaxed">
-              Ensure minimum 2 blank visa foils. For renewals, apply under Normal (30-45 days) or Tatkaal (3-7 business days) prior to initiating visa appointment booking.
-            </p>
-            <div className="pt-2">
-              <Link
-                href="/passport"
-                className="text-xs text-[var(--brand-teal)] hover:underline inline-flex items-center gap-1"
-              >
-                <span>Passport Services Guide</span>
-                <ArrowRight className="w-3 h-3" />
-              </Link>
-            </div>
-          </div>
-        </div>
+      <section className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.02] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div><h2 className="text-sm font-semibold text-slate-100">Need more guidance?</h2><p className="mt-1 text-xs text-slate-400">Explore the full visa directory or check your passport requirements.</p></div>
+        <div className="flex flex-wrap gap-3"><Link href="/visas/info" className="secondary-button">Visa guides <ArrowRight className="h-4 w-4" /></Link><Link href="/passport" className="secondary-button">Passport guide <ArrowRight className="h-4 w-4" /></Link></div>
       </section>
       </div>
     </div>

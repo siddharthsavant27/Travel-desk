@@ -26,6 +26,11 @@ This document records the provenance, licensing, and usage context for all visua
 
 ## 3. Destination Guides & Skylines
 
+The destination guides and homepage cards now use 2560 × 1707 local WebP photographs in place of the older 512-pixel thumbnails:
+
+- `dest_munich_hd.webp`: Munich rooftops and Frauenkirche, [Unsplash photograph](https://unsplash.com/photos/695xMQ3ju_E), [source image](https://images.unsplash.com/photo-1692726781437-bd6e202894b9). Used under the [Unsplash License](https://unsplash.com/license).
+- `dest_newyork_hd.webp`: Lower Manhattan across the water by Chris Linnett, [Unsplash photograph](https://unsplash.com/photos/fb3zNWeVtFk), [source image](https://images.unsplash.com/photo-1655923478764-dc557f11c497). Used under the [Unsplash License](https://unsplash.com/license).
+
 | Filename | Description | Usage | License / Source |
 | :--- | :--- | :--- | :--- |
 | `dest_munich.png` | Architectural dusk view of Munich Marienplatz & Bavarian city center | Destination guide (Munich, Germany), visa navigator | Commercial editorial travel photography (Royalty-free) |

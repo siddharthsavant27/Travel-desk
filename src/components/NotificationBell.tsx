@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Bell, Check, ExternalLink, Inbox } from "lucide-react";
 
@@ -21,10 +21,19 @@ export function NotificationBell({ initialCount = 0 }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [fetched, setFetched] = useState(false);
+  const sessionEnded = useRef(false);
 
   const fetchNotifications = async () => {
+    if (sessionEnded.current) return;
     try {
       const res = await fetch("/api/notifications");
+      if (res.status === 401) {
+        sessionEnded.current = true;
+        setNotifications([]);
+        setFetched(true);
+        window.dispatchEvent(new Event("traveldesk:session-expired"));
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setNotifications(data.notifications || []);
@@ -78,7 +87,7 @@ export function NotificationBell({ initialCount = 0 }: NotificationBellProps) {
       <button
         onClick={() => setOpen(!open)}
         id="notification-bell-btn"
-        className="p-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-fill)] hover:bg-[var(--glass-fill-hover)] text-[var(--foreground-muted)] hover:text-[var(--foreground)] relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-teal)]"
+        className="glass-control flex h-11 w-11 items-center justify-center rounded-full border border-[var(--glass-border)] text-[var(--foreground-muted)] hover:text-[var(--foreground)] relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-teal)]"
         aria-label={`View notifications (${unreadCount} unread)`}
         aria-expanded={open}
       >
@@ -95,7 +104,7 @@ export function NotificationBell({ initialCount = 0 }: NotificationBellProps) {
 
       {open && (
         <div 
-          className="absolute right-0 mt-2 w-80 sm:w-96 glass-panel p-4 shadow-2xl border border-[var(--glass-border)] z-50 text-xs animate-in fade-in slide-in-from-top-2 duration-150"
+          className="fixed left-4 right-4 top-20 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-3 sm:w-96 max-w-[calc(100vw-2rem)] rounded-2xl glass-floating p-4 shadow-2xl border border-[var(--glass-border)] z-50 text-xs animate-in fade-in slide-in-from-top-2 duration-150"
           role="region"
           aria-label="Notification center"
         >

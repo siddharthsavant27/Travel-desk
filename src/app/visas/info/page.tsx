@@ -1,45 +1,33 @@
 import Link from "next/link";
+import { PageHeading } from "@/components/PageHeading";
+import { Disclosure } from "@/components/Disclosure";
+import { portalGuidance } from "@/data/concierge-knowledge";
 import { 
-  ShieldCheck, 
   ExternalLink, 
   ArrowLeft, 
   CheckCircle2, 
   XCircle, 
-  AlertCircle, 
-  FileText, 
   Compass,
-  ArrowRight
 } from "lucide-react";
 
 export default function VisaInfoDirectoryPage() {
   const lastVerified = "October 2026";
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12 space-y-12">
+    <div className="page-shell !max-w-[1100px] space-y-6">
       {/* Navigation Breadcrumb */}
       <div>
         <Link 
           href="/visas" 
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--foreground-muted)] hover:text-[var(--brand-teal)] transition-colors"
+          className="back-link"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Back to Visa Navigator</span>
         </Link>
       </div>
 
-      {/* Header */}
-      <div className="space-y-4">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[var(--brand-teal)]/30 bg-[var(--brand-teal)]/10 text-[var(--brand-teal)] text-xs font-semibold uppercase tracking-wider">
-          <ShieldCheck className="w-3.5 h-3.5" />
-          <span>Statutory Consular Policy Directory</span>
-        </div>
-        <h1 className="font-serif text-3xl sm:text-4xl font-normal text-[var(--foreground)] tracking-tight">
-          Corporate Visa Classifications & Regulatory Standards
-        </h1>
-        <p className="text-sm text-[var(--foreground-muted)] max-w-3xl leading-relaxed">
-          Statutory guidelines governing Harbinger corporate mobility. Under our strict compliance policy, all figures, fees, and rules are cited directly from sovereign immigration authorities and verified as of {lastVerified}.
-        </p>
-      </div>
+      <PageHeading eyebrow="Visa reference" title="Business visa guides" description="Compare the essentials for Germany and the United States. Expand a section for the detailed activity rules and use the official links to confirm current requirements." />
+      <p className="text-xs leading-relaxed text-[var(--foreground-muted)]">{portalGuidance.visa}</p>
 
       {/* Quick Jump Links */}
       <div className="flex flex-wrap gap-2.5 pb-2 border-b border-[var(--glass-border)]">
@@ -58,7 +46,7 @@ export default function VisaInfoDirectoryPage() {
       </div>
 
       {/* Section 1: Schengen Business (Germany) */}
-      <section id="schengen-business" className="glass-panel p-8 space-y-6 border border-[var(--glass-border)]">
+      <section id="schengen-business" className="glass-panel p-5 sm:p-7 space-y-5 border border-[var(--glass-border)]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--brand-teal)]">
@@ -114,6 +102,7 @@ export default function VisaInfoDirectoryPage() {
           </div>
         </div>
 
+        <Disclosure title="Permitted & prohibited activities">
         {/* Permissible vs Prohibited Table */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
           <div className="p-4 rounded-lg bg-[var(--brand-teal)]/5 border border-[var(--brand-teal)]/20 space-y-2">
@@ -143,8 +132,10 @@ export default function VisaInfoDirectoryPage() {
           </div>
         </div>
 
+        </Disclosure>
+
         {/* Source citation */}
-        <div className="pt-3 border-t border-[var(--glass-border)] flex items-center justify-between text-xs text-[var(--foreground-subtle)]">
+        <div className="pt-3 border-t border-[var(--glass-border)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-[var(--foreground-subtle)]">
           <span>Official German Consular Authority: Federal Foreign Office (Auswärtiges Amt)</span>
           <a
             href="https://india.diplo.de/in-en/service/business-visa/1987516"
@@ -159,7 +150,7 @@ export default function VisaInfoDirectoryPage() {
       </section>
 
       {/* Section 2: US B-1 Visitor */}
-      <section id="us-b1" className="glass-panel p-8 space-y-6 border border-[var(--glass-border)]">
+      <section id="us-b1" className="glass-panel p-5 sm:p-7 space-y-5 border border-[var(--glass-border)]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--brand-indigo)]">
@@ -215,6 +206,7 @@ export default function VisaInfoDirectoryPage() {
           </div>
         </div>
 
+        <Disclosure title="Permitted & prohibited activities">
         {/* Permissible vs Prohibited Table */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
           <div className="p-4 rounded-lg bg-[var(--brand-teal)]/5 border border-[var(--brand-teal)]/20 space-y-2">
@@ -244,8 +236,10 @@ export default function VisaInfoDirectoryPage() {
           </div>
         </div>
 
+        </Disclosure>
+
         {/* Source citation */}
-        <div className="pt-3 border-t border-[var(--glass-border)] flex items-center justify-between text-xs text-[var(--foreground-subtle)]">
+        <div className="pt-3 border-t border-[var(--glass-border)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-[var(--foreground-subtle)]">
           <span>Authority: U.S. Department of State - Bureau of Consular Affairs</span>
           <a
             href="https://travel.state.gov/content/travel/en/us-visas/tourism-visit/visitor.html"

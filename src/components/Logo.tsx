@@ -17,7 +17,7 @@ export function Logo({ className = "", href = "/", showBadge = false, showPartne
     >
       {/* Crisp White Rounded Pill Container for Harbinger Corporate Lockup */}
       {showPartnerIcon && (
-        <div className="h-8 sm:h-9 px-2.5 sm:px-3 bg-white rounded-lg flex items-center justify-center shadow-sm transition-transform duration-200 group-hover:scale-105">
+        <div className="hidden min-[400px]:flex h-8 sm:h-9 px-2.5 sm:px-3 bg-white rounded-lg items-center justify-center shadow-sm">
           <Image
             src="/images/harbinger-logo.png"
             alt="Harbinger Group"

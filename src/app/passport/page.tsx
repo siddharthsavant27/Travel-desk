@@ -1,42 +1,23 @@
 import Link from "next/link";
-import { 
-  FileCheck2, 
-  ExternalLink, 
-  AlertTriangle, 
-  CheckCircle2, 
-  ShieldCheck, 
-  Clock, 
-  Compass,
-  ArrowRight
-} from "lucide-react";
+import { PageHeading } from "@/components/PageHeading";
+import { Disclosure } from "@/components/Disclosure";
+import { ExternalLink, AlertTriangle, CheckCircle2, Compass } from "lucide-react";
+import { portalGuidance } from "@/data/concierge-knowledge";
 
 export default function PassportPage() {
   const lastVerified = "October 2026";
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12 space-y-10">
-      {/* Header */}
-      <div className="space-y-4 text-center max-w-2xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[var(--brand-teal)]/30 bg-[var(--brand-teal)]/10 text-[var(--brand-teal)] text-xs font-semibold uppercase tracking-wider">
-          <FileCheck2 className="w-3.5 h-3.5" />
-          <span>Statutory Travel Documentation</span>
-        </div>
-        <h1 className="font-serif text-3xl sm:text-4xl font-normal text-[var(--foreground)] tracking-tight">
-          Passport Services & Consular Validity Standards
-        </h1>
-        <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">
-          Passport validity requirements differ by sovereign jurisdiction. Verify your passport expiration date against the destination country&apos;s specific legal mandate before scheduling consular appointments.
-        </p>
-        <div className="text-xs text-[var(--foreground-subtle)]">
-          Policy Last Verified: {lastVerified}
-        </div>
-      </div>
+    <div className="page-shell !max-w-[1060px] space-y-6">
+      <PageHeading eyebrow="Travel documents" title="Is your passport travel-ready?" description="Check the validity requirements for your destination before booking a visa appointment. This guide is for Indian passport holders." />
+      <p className="text-xs text-slate-400">Policy last verified: {lastVerified}</p>
+      <p className="text-xs leading-relaxed text-slate-400">{portalGuidance.passport}</p>
 
       {/* Two Jurisdiction Comparison Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Card 1: Schengen Area (Germany) */}
         <div className="glass-panel p-6 space-y-5 border border-[var(--glass-border)]">
-          <div className="flex items-center justify-between pb-3 border-b border-[var(--glass-border)]">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[var(--glass-border)]">
             <span className="text-xs font-semibold uppercase tracking-wider text-[var(--brand-teal)]">
               Germany & Schengen Area
             </span>
@@ -136,14 +117,7 @@ export default function PassportPage() {
       </div>
 
       {/* Passport Renewal Protocol (India) */}
-      <section className="glass-panel p-6 sm:p-7 space-y-4 border border-[var(--glass-border)]">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-5 h-5 text-[var(--brand-teal)]" />
-          <h3 className="text-lg font-serif font-semibold text-[var(--foreground)]">
-            Passport Renewal Protocol for Harbinger Employees (Passport Seva India)
-          </h3>
-        </div>
-
+      <Disclosure title="Need to renew your passport?">
         <p className="text-xs text-[var(--foreground-muted)] leading-relaxed">
           If your passport validity does not satisfy the above statutory rules, initiate renewal via the official Passport Seva portal before requesting company invitation letters.
         </p>
@@ -184,10 +158,10 @@ export default function PassportPage() {
             Only use the official .gov.in portal. Avoid third-party intermediaries.
           </span>
         </div>
-      </section>
+      </Disclosure>
 
       {/* CTA to Navigator */}
-      <div className="flex items-center justify-between p-6 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-fill)]">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-fill)]">
         <div>
           <h4 className="text-sm font-semibold text-[var(--foreground)]">Have your passport details ready?</h4>
           <p className="text-xs text-[var(--foreground-muted)]">Check full visa eligibility on the Visa Navigator.</p>

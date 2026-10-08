@@ -1,217 +1,131 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSessionFromRequest, logAuditEvent } from "@/lib/auth";
-import { 
-  evaluateAnswerFlag, 
-  calculateReadinessScore, 
-  REQUIRED_DOCUMENTS 
-} from "@/lib/prescreening";
-import { FlagSeverity, ApplicationStatus } from "@prisma/client";
+import { getSessionFromRequest } from "@/lib/auth";
+import { audit, refreshAnswerFlags, refreshCase } from "@/lib/case-service";
+import { EDITABLE_STATUSES, choiceOptions } from "@/lib/workflow";
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
-  try {
-    const session = await getSessionFromRequest(req);
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { id } = await params;
-    const body = await req.json();
-    const { questionId, answerValue } = body;
-
-    if (!questionId || answerValue === undefined || answerValue === null) {
-      return NextResponse.json({ error: "questionId and answerValue are required." }, { status: 400 });
-    }
-
-    const application = await prisma.application.findUnique({
-      where: { id },
-      include: {
-        interviewSessions: { orderBy: { createdAt: "desc" }, take: 1 },
-        documents: true,
-        flags: { where: { resolved: false } },
-      },
-    });
-
-    if (!application) {
-      return NextResponse.json({ error: "Application not found" }, { status: 404 });
-    }
-
-    // Access check: Owner or CSR/Admin
-    if (application.userId !== session.userId && session.role !== "CSR" && session.role !== "ADMIN") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    let interviewSession = application.interviewSessions[0];
-    if (!interviewSession) {
-      interviewSession = await prisma.interviewSession.create({
-        data: {
-          applicationId: id,
-          visaType: application.visaType,
-        },
-      });
-    }
-
-    // Find question
-    const question = await prisma.question.findUnique({
-      where: { id: questionId },
-    });
-
-    if (!question) {
-      return NextResponse.json({ error: "Question not found" }, { status: 404 });
-    }
-
-    // 1. Evaluate deterministic flag
-    const flagResult = evaluateAnswerFlag(
-      question.key,
-      String(answerValue),
-      application.departureDate,
-      application.returnDate
+  const session = await getSessionFromRequest(req);
+  if (!session)
+    return NextResponse.json({ error: "Please sign in." }, { status: 401 });
+  const { id } = await params;
+  const { questionId, answerValue } = await req.json();
+  if (
+    typeof questionId !== "string" ||
+    typeof answerValue !== "string" ||
+    !answerValue.trim() ||
+    answerValue.length > 10000
+  )
+    return NextResponse.json(
+      { error: "Choose or enter an answer before continuing." },
+      { status: 400 },
     );
-
-    // Upsert or create InterviewAnswer
-    const existingAnswer = await prisma.interviewAnswer.findFirst({
-      where: {
-        sessionId: interviewSession.id,
-        questionId: question.id,
-      },
-    });
-
-    let answer;
-    if (existingAnswer) {
-      answer = await prisma.interviewAnswer.update({
-        where: { id: existingAnswer.id },
-        data: {
-          answerValue: String(answerValue),
-          questionKey: question.key,
-          questionText: question.questionText,
-          isSkipped: false,
-        },
-      });
-    } else {
-      answer = await prisma.interviewAnswer.create({
-        data: {
-          sessionId: interviewSession.id,
-          questionId: question.id,
-          questionKey: question.key,
-          questionText: question.questionText,
-          answerValue: String(answerValue),
-          isSkipped: false,
-        },
-      });
-    }
-
-    // 2. Handle CaseFlag in database
-    if (flagResult.hasFlag && flagResult.code && flagResult.severity && flagResult.message) {
-      // Check if flag already exists
-      const existingFlag = await prisma.caseFlag.findFirst({
-        where: {
-          applicationId: id,
-          code: flagResult.code,
-          resolved: false,
-        },
-      });
-
-      if (!existingFlag) {
-        await prisma.caseFlag.create({
-          data: {
-            applicationId: id,
-            sessionId: interviewSession.id,
-            flagType: "STATUTORY_RULE",
-            code: flagResult.code,
-            severity: flagResult.severity,
-            message: flagResult.message,
-            resolved: false,
-          },
-        });
-      }
-    } else {
-      // If user corrected answer, resolve flags related to this question
-      if (question.key === "schengen_purpose" || question.key === "usb1_purpose") {
-        await prisma.caseFlag.updateMany({
-          where: {
-            applicationId: id,
-            code: "FLAG_PERMIT_MISMATCH",
-            resolved: false,
-          },
-          data: { resolved: true, resolvedAt: new Date() },
-        });
-      } else if (question.key === "schengen_duration_days") {
-        await prisma.caseFlag.updateMany({
-          where: {
-            applicationId: id,
-            code: "FLAG_EXCESSIVE_DURATION_SCHENGEN",
-            resolved: false,
-          },
-          data: { resolved: true, resolvedAt: new Date() },
-        });
-      }
-    }
-
-    // 3. Recalculate readiness score
-    const allQuestions = await prisma.question.findMany({
-      where: {
-        OR: [
-          { visaType: application.visaType },
-          { visaType: "ALL" },
-        ],
-        isActive: true,
-      },
-    });
-
-    const allAnswers = await prisma.interviewAnswer.findMany({
-      where: { sessionId: interviewSession.id },
-    });
-
-    const activeFlags = await prisma.caseFlag.findMany({
-      where: { applicationId: id, resolved: false },
-    });
-
-    const criticalFlags = activeFlags.filter((f: { severity: FlagSeverity }) => f.severity === FlagSeverity.CRITICAL).length;
-    const warningFlags = activeFlags.filter((f: { severity: FlagSeverity }) => f.severity === FlagSeverity.WARNING).length;
-
-    const requiredDocsList = REQUIRED_DOCUMENTS[application.visaType] || REQUIRED_DOCUMENTS.DEFAULT;
-    const uploadedDocs = application.documents.length;
-
-    const mandatoryQuestions = allQuestions.filter((q) => q.isMandatory);
-    const answeredMandatory = mandatoryQuestions.filter((mq) =>
-      allAnswers.some((a) => a.questionId === mq.id && a.answerValue)
-    ).length;
-
-    const readiness = calculateReadinessScore(
-      mandatoryQuestions.length,
-      answeredMandatory,
-      requiredDocsList.length,
-      uploadedDocs,
-      criticalFlags,
-      warningFlags
+  const application = await prisma.application.findUnique({
+    where: { id },
+    include: { interviewSessions: { orderBy: { createdAt: "desc" }, take: 1 } },
+  });
+  if (!application)
+    return NextResponse.json(
+      { error: "Application not found." },
+      { status: 404 },
     );
-
-    // Update application readiness score & status
-    const newStatus = application.status === ApplicationStatus.DRAFT 
-      ? ApplicationStatus.INTERVIEW_IN_PROGRESS 
-      : application.status;
-
-    await prisma.application.update({
+  if (application.userId !== session.userId)
+    return NextResponse.json(
+      { error: "Only the employee can change answers." },
+      { status: 403 },
+    );
+  if (!EDITABLE_STATUSES.includes(application.status))
+    return NextResponse.json(
+      { error: "Answers are locked while the application is under review." },
+      { status: 409 },
+    );
+  const question = await prisma.question.findFirst({
+    where: {
+      id: questionId,
+      visaType: { in: [application.visaType, "ALL"] },
+      isActive: true,
+      approvalStatus: "APPROVED",
+    },
+  });
+  if (!question)
+    return NextResponse.json(
+      { error: "This question is not part of the application." },
+      { status: 400 },
+    );
+  const value = answerValue.trim();
+  if (question.responseType === "BOOLEAN" && !["true", "false"].includes(value))
+    return NextResponse.json({ error: "Select Yes or No." }, { status: 400 });
+  if (
+    question.responseType === "SINGLE_CHOICE" &&
+    !choiceOptions(question).some((option) => option.value === value)
+  )
+    return NextResponse.json(
+      { error: "Select one of the available choices." },
+      { status: 400 },
+    );
+  if (
+    question.responseType === "NUMBER" &&
+    (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 36500)
+  )
+    return NextResponse.json(
+      { error: "Enter a whole number from 1 to 36500." },
+      { status: 400 },
+    );
+  if (
+    question.responseType === "DATE" &&
+    (!/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+      !Number.isFinite(Date.parse(value)) ||
+      new Date(value).toISOString().slice(0, 10) !== value)
+  )
+    return NextResponse.json({ error: "Enter a valid date." }, { status: 400 });
+  const result = await prisma.$transaction(async (db) => {
+    const current = await db.application.findUniqueOrThrow({ where: { id } });
+    if (!EDITABLE_STATUSES.includes(current.status))
+      return {
+        error: "Answers are locked while the application is under review.",
+        status: 409,
+      };
+    const interview =
+      application.interviewSessions[0] ??
+      (await db.interviewSession.create({
+        data: { applicationId: id, visaType: application.visaType },
+      }));
+    await db.interviewAnswer.upsert({
+      where: { sessionId_questionId: { sessionId: interview.id, questionId } },
+      create: {
+        sessionId: interview.id,
+        questionId,
+        questionKey: question.key,
+        questionText: question.questionText,
+        answerValue: value,
+      },
+      update: {
+        answerValue: value,
+        questionText: question.questionText,
+        isSkipped: false,
+      },
+    });
+    await db.application.update({
       where: { id },
       data: {
-        readinessScore: readiness.score,
-        readinessDetails: readiness.formulaDetails,
-        status: newStatus,
+        status:
+          current.status === "DRAFT" ? "INTERVIEW_IN_PROGRESS" : current.status,
       },
     });
-
-    return NextResponse.json({
-      success: true,
-      answer,
-      flag: flagResult,
-      readinessScore: readiness.score,
-      readinessDetails: readiness.formulaDetails,
+    await refreshAnswerFlags(id, db);
+    await audit(db, session.userId, id, "ANSWER_SAVED", {
+      questionKey: question.key,
     });
-  } catch (err) {
-    console.error("Error saving interview answer:", err);
-    return NextResponse.json({ error: "Failed to record interview answer" }, { status: 500 });
-  }
+    return refreshCase(id, db);
+  });
+  if ("error" in result)
+    return NextResponse.json(result, { status: result.status });
+  return NextResponse.json({
+    success: true,
+    application: result,
+    readinessScore: result.readinessScore,
+  });
 }

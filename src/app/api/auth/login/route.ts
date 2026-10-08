@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { safeReturnPath, roleHome } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { 
   validateCompanyEmail, 
@@ -17,9 +19,11 @@ export async function POST(req: Request) {
     const ip = req.headers.get("x-forwarded-for") || "127.0.0.1";
     const userAgent = req.headers.get("user-agent") || undefined;
     const body = await req.json();
-    const { email, password } = body;
+    const parsed = z.object({ email: z.string().trim().email().max(254), password: z.string().min(1).max(256), from: z.string().optional().nullable() }).safeParse(body);
+    if (!parsed.success) return NextResponse.json({ error: "Enter your company email and password." }, { status: 400 });
+    const { email, password, from } = parsed.data;
 
-    if (!email || !password) {
+    if (!email || !password || Buffer.byteLength(password, "utf8") > 72) {
       return NextResponse.json(
         { error: "Email and password are required." },
         { status: 400 }
@@ -81,7 +85,7 @@ export async function POST(req: Request) {
     // 4. Password Verification
     const passwordMatch = await verifyPassword(password, user.passwordHash);
     if (!passwordMatch) {
-      const newAttempts = user.failedLoginAttempts + 1;
+      const newAttempts = (user.lockedUntil && user.lockedUntil <= new Date() ? 0 : user.failedLoginAttempts) + 1;
       const isNowLocked = newAttempts >= 5;
       const lockDate = isNowLocked ? new Date(Date.now() + 15 * 60 * 1000) : user.lockedUntil;
 
@@ -120,6 +124,7 @@ export async function POST(req: Request) {
       where: { id: user.id },
       data: {
         failedLoginAttempts: 0,
+        lockedUntil: null,
         lastLoginAt: new Date(),
       },
     });
@@ -131,6 +136,7 @@ export async function POST(req: Request) {
       name: user.name,
       role: user.role,
       mustChangePassword: user.mustChangePassword,
+      sessionVersion: user.sessionVersion,
       lastActive: Date.now(),
     });
 
@@ -153,10 +159,8 @@ export async function POST(req: Request) {
         mustChangePassword: user.mustChangePassword,
       },
       redirectUrl: user.mustChangePassword
-        ? "/change-password"
-        : user.role === "CSR" || user.role === "ADMIN"
-        ? "/review"
-        : "/dashboard",
+        ? `/change-password?from=${encodeURIComponent(safeReturnPath(from, roleHome(user.role)))}`
+        : safeReturnPath(from, roleHome(user.role)),
     });
 
     response.cookies.set({
@@ -173,8 +177,8 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error("Login error:", err);
     return NextResponse.json(
-      { error: "An unexpected error occurred during authentication." },
-      { status: 500 }
+      { error: "Account access is temporarily unavailable. Please contact the travel desk if this continues." },
+      { status: 503 }
     );
   }
 }

@@ -2,22 +2,24 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Newsreader, Inter } from "next/font/google";
 import "./globals.css";
+import "./workflow.css";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { AIConciergeLauncher } from "@/components/AIConciergeLauncher";
 import { SessionExpiredModal } from "@/components/SessionExpiredModal";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { conciergeConfig } from "@/lib/concierge/config";
 
 const newsreader = Newsreader({
   subsets: ["latin"],
-  variable: "--font-serif",
+  variable: "--font-newsreader",
   display: "swap",
 });
 
 const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-sans",
+  variable: "--font-inter",
   display: "swap",
 });
 
@@ -50,6 +52,7 @@ export default async function RootLayout({
 
   return (
     <html
+      data-scroll-behavior="smooth"
       lang="en"
       className={`${newsreader.variable} ${inter.variable} h-full antialiased dark`}
     >
@@ -61,10 +64,11 @@ export default async function RootLayout({
           <div className="aurora-glow-bottom" />
         </div>
 
+        <a href="#main-content" className="skip-link">Skip to content</a>
         <Navbar user={user} unreadNotificationsCount={unreadCount} />
-        <main className="flex-1 relative z-10">{children}</main>
+        <main id="main-content" tabIndex={-1} className="flex-1 relative z-10 min-w-0">{children}</main>
         <Footer />
-        <AIConciergeLauncher />
+        <AIConciergeLauncher key={`${user?.id ?? "guest"}:${user?.sessionVersion ?? 0}`} signedIn={Boolean(user)} mustChangePassword={user?.mustChangePassword} configured={Boolean(conciergeConfig())} />
         <Suspense fallback={null}>
           <SessionExpiredModal />
         </Suspense>

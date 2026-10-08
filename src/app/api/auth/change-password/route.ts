@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { safeReturnPath, roleHome } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { 
   getCurrentUser, 
@@ -19,7 +21,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized session." }, { status: 401 });
     }
 
-    const { currentPassword, newPassword } = await req.json();
+    const parsed = z.object({ currentPassword: z.string().min(1), newPassword: z.string().min(10).max(256), from: z.string().optional().nullable() }).safeParse(await req.json());
+    if (!parsed.success) return NextResponse.json({ error: "Your current password and a new password of at least 10 characters are required." }, { status: 400 });
+    const { currentPassword, newPassword, from } = parsed.data;
 
     if (!newPassword) {
       return NextResponse.json({ error: "New password is required." }, { status: 400 });
@@ -51,12 +55,16 @@ export async function POST(req: Request) {
     }
 
     // 3. Hash & Update
+    if (await verifyPassword(newPassword, fullUser.passwordHash)) return NextResponse.json({ error: "Choose a different password from your current one." }, { status: 400 });
     const newHash = await hashPassword(newPassword);
-    await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: {
         passwordHash: newHash,
         mustChangePassword: false,
+        sessionVersion: { increment: 1 },
+        failedLoginAttempts: 0,
+        lockedUntil: null,
       },
     });
 
@@ -67,6 +75,7 @@ export async function POST(req: Request) {
       name: user.name,
       role: user.role,
       mustChangePassword: false,
+      sessionVersion: updatedUser.sessionVersion,
       lastActive: Date.now(),
     });
 
@@ -81,7 +90,7 @@ export async function POST(req: Request) {
     const response = NextResponse.json({
       success: true,
       message: "Password updated successfully.",
-      redirectUrl: user.role === "CSR" || user.role === "ADMIN" ? "/review" : "/dashboard",
+      redirectUrl: safeReturnPath(from, roleHome(user.role)),
     });
 
     response.cookies.set({

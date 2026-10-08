@@ -58,7 +58,7 @@ export default function ChangePasswordPage() {
       const res = await fetch("/api/auth/change-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword, newPassword }),
+        body: JSON.stringify({ currentPassword, newPassword, from: new URLSearchParams(window.location.search).get("from") }),
       });
 
       const data = await res.json();
@@ -89,7 +89,7 @@ export default function ChangePasswordPage() {
           </div>
           <div className="flex items-center gap-1.5 text-[var(--foreground-subtle)] text-xs">
             <Lock className="w-3.5 h-3.5 text-[var(--brand-amber)]" />
-            <span>Setup Required</span>
+            <span>Secure account</span>
           </div>
         </div>
 
@@ -114,9 +114,9 @@ export default function ChangePasswordPage() {
 
           <div>
             <h1 className="font-serif text-2xl md:text-3xl font-normal text-white tracking-tight mb-2">
-              Update your temporary password
+              Change your password
               <span className="block text-xs uppercase tracking-wider text-[var(--brand-teal)] mt-1 font-sans font-semibold">
-                Password Update Required
+                Account security
               </span>
             </h1>
             <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">
@@ -139,7 +139,7 @@ export default function ChangePasswordPage() {
             {/* Current Password */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold uppercase tracking-wider text-[var(--foreground)]" htmlFor="currentPassword">
-                Current temporary password
+                Current password
               </label>
               <div className="relative flex items-center">
                 <Key className="w-4 h-4 absolute left-3.5 text-[var(--foreground-subtle)]" />
@@ -149,14 +149,14 @@ export default function ChangePasswordPage() {
                   required
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  placeholder="Enter assigned temporary password"
+                  placeholder="Enter current or temporary password"
                   className="w-full h-11 pl-10 pr-10 rounded-lg glass-input text-sm placeholder:text-[var(--foreground-subtle)] focus:bg-[#071426]/80 transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => setShowCurrent(!showCurrent)}
                   className="absolute right-3 p-1 text-[var(--foreground-subtle)] hover:text-white transition-colors"
-                  aria-label="Toggle temporary password visibility"
+                  aria-label="Toggle current password visibility"
                 >
                   {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>

@@ -1,0 +1,38 @@
+.glassSurface {
+  position: relative;
+  isolation: isolate;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+/* Keep the glass separate from the controls so only its lower edge fades. */
+.glassSurface::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 -40px;
+  z-index: -1;
+  pointer-events: none;
+  background: rgb(7 20 38 / 0.38);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - 56px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - 56px), transparent 100%);
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.scrolled::before,
+.menuOpen::before {
+  opacity: 1;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glassSurface::before {
+    background: rgb(7 20 38 / 0.94);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glassSurface::before { transition: none; }
+}

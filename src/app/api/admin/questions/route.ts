@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionFromRequest, logAuditEvent } from "@/lib/auth";
-import { Role } from "@prisma/client";
+import { Role, Prisma } from "@prisma/client";
 
 export async function GET(req: Request) {
   try {
@@ -13,7 +13,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const visaType = searchParams.get("visaType");
 
-    const where: any = {};
+    const where: Prisma.QuestionWhereInput = {};
     if (visaType && visaType !== "ALL") {
       where.visaType = visaType;
     }
@@ -103,7 +103,7 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Question ID is required." }, { status: 400 });
     }
 
-    const updateData: any = {};
+    const updateData: Prisma.QuestionUpdateInput = {};
     if (isActive !== undefined) updateData.isActive = Boolean(isActive);
     if (orderIndex !== undefined) updateData.orderIndex = Number(orderIndex);
     if (questionText !== undefined) updateData.questionText = questionText;

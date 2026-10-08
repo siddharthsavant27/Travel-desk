@@ -24,7 +24,10 @@ export function SessionExpiredModal() {
 
   const handleSignIn = () => {
     setIsOpen(false);
-    router.push(`/login?from=${encodeURIComponent(pathname)}`);
+    const query = new URLSearchParams(searchParams.toString());
+    query.delete("expired");
+    query.delete("session_expired");
+    router.push(`/login?from=${encodeURIComponent(pathname + (query.size ? "?" + query.toString() : ""))}`);
   };
 
   return (

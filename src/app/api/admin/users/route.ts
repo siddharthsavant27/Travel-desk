@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSessionFromRequest, logAuditEvent, generateTemporaryPassword, hashPassword, HARBINGER_DOMAIN } from "@/lib/auth";
+import { getSessionFromRequest, logAuditEvent, generateTemporaryPassword, hashPassword, HARBINGER_DOMAIN, validateCompanyEmail } from "@/lib/auth";
 import { Role } from "@prisma/client";
 
 export async function GET(req: Request) {
@@ -47,14 +47,14 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { name, email, role = Role.CUSTOMER } = body;
 
-    if (!name || !email) {
+    if (typeof name !== "string" || !name.trim() || typeof email !== "string" || !Object.values(Role).includes(role)) {
       return NextResponse.json({ error: "Name and email are required." }, { status: 400 });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
 
     // 1. Validate Harbinger domain
-    if (!normalizedEmail.endsWith(HARBINGER_DOMAIN)) {
+    if (!validateCompanyEmail(normalizedEmail)) {
       return NextResponse.json(
         { error: `Corporate policy strictly requires an authorized ${HARBINGER_DOMAIN} email address.` },
         { status: 400 }

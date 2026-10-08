@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import React, { useState, useEffect } from "react";
 import { 
   Users, 
@@ -331,6 +332,8 @@ export default function AdminPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <Link href="/admin/booking-providers" className="inline-flex rounded-xl border border-teal-300/30 px-4 py-3 text-sm text-teal-100">Manage booking websites →</Link>
+      <Link href="/admin/access" className="inline-flex rounded-xl border border-teal-300/30 bg-teal-300/10 px-4 py-3 text-sm text-teal-100 hover:bg-teal-300/20">Review account access & password reset requests →</Link>
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -496,7 +499,7 @@ export default function AdminPage() {
                       <td className="py-3.5 px-4">
                         <select
                           value={u.role}
-                          onChange={(e) => handleRoleChange(u.id, e.target.value as any)}
+                          onChange={(e) => handleRoleChange(u.id, e.target.value as UserItem["role"])}
                           aria-label={`Change role for ${u.name}`}
                           className="px-2.5 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--background)] text-xs text-[var(--foreground)] font-medium focus:ring-1 focus:ring-[var(--brand-teal)]"
                         >
@@ -789,7 +792,7 @@ export default function AdminPage() {
                 <select
                   id="admin-new-user-role"
                   value={newUserRole}
-                  onChange={(e) => setNewUserRole(e.target.value as any)}
+                  onChange={(e) => setNewUserRole(e.target.value as UserItem["role"])}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--glass-bg)] text-sm text-[var(--foreground)] focus:ring-2 focus:ring-[var(--brand-teal)]"
                 >
                   <option value="CUSTOMER">Customer (Employee Submitting Cases)</option>

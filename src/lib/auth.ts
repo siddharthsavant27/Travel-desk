@@ -1,28 +1,9 @@
-import { SignJWT, jwtVerify } from "jose";
+import { randomInt } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { Role } from "@prisma/client";
-
-const SECRET_KEY = new TextEncoder().encode(
-  process.env.SESSION_SECRET || "traveldesk-super-secret-key-at-least-32-chars-long-2026"
-);
-
-export const SESSION_COOKIE_NAME = "traveldesk_session";
-export const SESSION_MAX_AGE = 8 * 60 * 60; // 8 hours in seconds
-export const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes in ms
-export const IS_COOKIE_SECURE = 
-  process.env.NODE_ENV === "production" && 
-  process.env.NEXT_PUBLIC_APP_URL?.startsWith("https://") === true;
-
-export interface SessionPayload {
-  userId: string;
-  email: string;
-  name: string;
-  role: Role;
-  mustChangePassword?: boolean;
-  lastActive: number;
-}
+import { SESSION_COOKIE_NAME, verifySessionToken, type SessionPayload } from "./session";
+export * from "./session";
 
 export const HARBINGER_DOMAIN = "@harbingergroup.com";
 
@@ -35,13 +16,13 @@ export function generateTemporaryPassword(): string {
   const all = uppercase + lowercase + digits + symbols;
 
   let pwd = "";
-  pwd += uppercase.charAt(Math.floor(Math.random() * uppercase.length));
-  pwd += lowercase.charAt(Math.floor(Math.random() * lowercase.length));
-  pwd += digits.charAt(Math.floor(Math.random() * digits.length));
-  pwd += symbols.charAt(Math.floor(Math.random() * symbols.length));
+  pwd += uppercase.charAt(randomInt(uppercase.length));
+  pwd += lowercase.charAt(randomInt(lowercase.length));
+  pwd += digits.charAt(randomInt(digits.length));
+  pwd += symbols.charAt(randomInt(symbols.length));
 
   for (let i = 4; i < 14; i++) {
-    pwd += all.charAt(Math.floor(Math.random() * all.length));
+    pwd += all.charAt(randomInt(all.length));
   }
   return pwd;
 }
@@ -50,7 +31,7 @@ export function generateTemporaryPassword(): string {
 export function validateCompanyEmail(email: string): boolean {
   if (!email) return false;
   const clean = email.trim().toLowerCase();
-  return clean.endsWith(HARBINGER_DOMAIN);
+  return /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@harbingergroup\.com$/.test(clean);
 }
 
 // 2. Password Strength Check (At least 10 chars, strength score 0-4)
@@ -59,11 +40,11 @@ export function validatePasswordStrength(password: string): {
   score: number;
   message?: string;
 } {
-  if (!password || password.length < 10) {
+  if (!password || password.length < 10 || Buffer.byteLength(password, "utf8") > 72) {
     return {
       valid: false,
       score: Math.min(1, Math.floor((password?.length || 0) / 3)),
-      message: "Password must be at least 10 characters long.",
+      message: "Use at least 10 characters and no more than 72 UTF-8 bytes.",
     };
   }
 
@@ -86,32 +67,6 @@ export async function hashPassword(password: string): Promise<string> {
 
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   return bcrypt.compare(password, hash);
-}
-
-// 4. Session Token Signing & Verification
-export async function signSessionToken(payload: SessionPayload): Promise<string> {
-  return new SignJWT({ ...payload })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("8h")
-    .sign(SECRET_KEY);
-}
-
-export async function verifySessionToken(token: string): Promise<SessionPayload | null> {
-  try {
-    const { payload } = await jwtVerify(token, SECRET_KEY);
-    const session = payload as unknown as SessionPayload;
-
-    // Check idle timeout (30 minutes)
-    const now = Date.now();
-    if (session.lastActive && now - session.lastActive > IDLE_TIMEOUT_MS) {
-      return null;
-    }
-
-    return session;
-  } catch {
-    return null;
-  }
 }
 
 // 5. In-Memory Rate Limiter (5 attempts per 15 mins)
@@ -152,6 +107,12 @@ export function resetLoginRateLimit(key: string): void {
   loginRateLimitMap.delete(key);
 }
 
+export function clearLoginRateLimits(email: string): void {
+  for (const key of loginRateLimitMap.keys()) {
+    if (key.startsWith(`${email.toLowerCase()}:`)) loginRateLimitMap.delete(key);
+  }
+}
+
 // 6. Get Current User Server Helper
 export async function getCurrentUser() {
   try {
@@ -172,10 +133,11 @@ export async function getCurrentUser() {
         role: true,
         isActive: true,
         mustChangePassword: true,
+        sessionVersion: true,
       },
     });
 
-    if (!user || !user.isActive) {
+    if (!user || !user.isActive || user.sessionVersion !== (payload.sessionVersion ?? 0)) {
       return null;
     }
 
@@ -186,23 +148,31 @@ export async function getCurrentUser() {
 }
 
 // 7. Get Session From Request (extracts cookie from req headers or cookies store)
-export async function getSessionFromRequest(req?: Request): Promise<SessionPayload | null> {
+export async function getSessionFromRequest(req?: Request, allowPasswordChange = false): Promise<SessionPayload | null> {
   try {
     if (req) {
       const cookieHeader = req.headers.get("cookie") || "";
       const match = cookieHeader.match(new RegExp(`(?:^|; )${SESSION_COOKIE_NAME}=([^;]*)`));
       const token = match ? decodeURIComponent(match[1]) : null;
-      if (token) {
-        return await verifySessionToken(token);
-      }
+      if (token) return await validateActiveSession(token, allowPasswordChange);
+      return null;
     }
     const cookieStore = await cookies();
     const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
     if (!token) return null;
-    return await verifySessionToken(token);
+    return await validateActiveSession(token, allowPasswordChange);
   } catch {
     return null;
   }
+}
+
+async function validateActiveSession(token: string, allowPasswordChange: boolean) {
+  const payload = await verifySessionToken(token);
+  if (!payload) return null;
+  const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+  if (!user?.isActive || user.sessionVersion !== (payload.sessionVersion ?? 0)) return null;
+  if (user.mustChangePassword && !allowPasswordChange) return null;
+  return { ...payload, name: user.name, email: user.email, role: user.role, mustChangePassword: user.mustChangePassword, sessionVersion: user.sessionVersion };
 }
 
 // 7. Audit Log Helper

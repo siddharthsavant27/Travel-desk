@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { safeReturnPath, roleHome } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { 
   signSessionToken, 
@@ -11,14 +12,14 @@ import {
 export async function POST(req: Request) {
   try {
     // 1. Strictly verify Demo Mode is enabled
-    if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") {
+    if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true" || process.env.NODE_ENV === "production") {
       return NextResponse.json(
         { error: "Demo login is disabled in this environment." },
         { status: 403 }
       );
     }
 
-    const { role } = await req.json();
+    const { role, from } = await req.json();
     const validRoles = ["CUSTOMER", "CSR", "ADMIN"] as const;
 
     if (!validRoles.includes(role)) {
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
       where: { email: targetEmail },
     });
 
-    if (!user || !user.isActive) {
+    if (!user || !user.isActive || user.role !== role) {
       return NextResponse.json(
         { error: `Demo account for ${role} not found. Please ensure database is seeded.` },
         { status: 404 }
@@ -51,6 +52,7 @@ export async function POST(req: Request) {
       name: user.name,
       role: user.role,
       mustChangePassword: user.mustChangePassword,
+      sessionVersion: user.sessionVersion,
       lastActive: Date.now(),
     });
 
@@ -69,7 +71,7 @@ export async function POST(req: Request) {
         email: user.email,
         role: user.role,
       },
-      redirectUrl: user.role === "CSR" || user.role === "ADMIN" ? "/review" : "/dashboard",
+      redirectUrl: user.mustChangePassword ? `/change-password?from=${encodeURIComponent(safeReturnPath(from, roleHome(user.role)))}` : safeReturnPath(from, roleHome(user.role)),
     });
 
     response.cookies.set({

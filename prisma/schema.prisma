@@ -21,6 +21,7 @@ model User {
   role                Role         @default(CUSTOMER)
   isActive            Boolean      @default(true)
   mustChangePassword  Boolean      @default(false)
+  sessionVersion      Int          @default(0)
   failedLoginAttempts Int          @default(0)
   lockedUntil         DateTime?
   lastLoginAt         DateTime?
@@ -60,6 +61,14 @@ model Application {
   travelPurpose      String
   departureDate      DateTime?
   returnDate         DateTime?
+  departureAirportName String?
+  departureAirportCode String?
+  destinationAirportName String?
+  destinationAirportCode String?
+  destinationCity    String?
+  itineraryRevision  Int               @default(1)
+  booking            Booking?
+  bookingHistory     BookingHistory[]
   status             ApplicationStatus @default(DRAFT)
   readinessScore     Int               @default(0)
   readinessDetails   String?
@@ -108,6 +117,7 @@ model InterviewAnswer {
   updatedAt          DateTime          @updatedAt
 
   @@index([sessionId])
+  @@unique([sessionId, questionId])
   @@index([questionKey])
 }
 
@@ -137,6 +147,7 @@ model Document {
   updatedAt          DateTime          @updatedAt
 
   @@index([applicationId])
+  @@unique([applicationId, documentType])
   @@index([status])
 }
 
@@ -264,4 +275,65 @@ model Notification {
   createdAt          DateTime          @default(now())
 
   @@index([userId])
+}
+
+model AccessRequest {
+  id          String   @id @default(cuid())
+  name        String
+  email       String
+  type        String
+  message     String?
+  status      String   @default("PENDING")
+  resolvedBy  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([status, createdAt])
+  @@index([email])
+}
+
+model Booking {
+  id String @id @default(cuid())
+  applicationId String @unique
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  itineraryRevision Int
+  preferences String @default("{}")
+  flightConfirmation String?
+  hotelConfirmation String?
+  updatedAt DateTime @updatedAt
+}
+
+model BookingHistory {
+  id String @id @default(cuid())
+  applicationId String
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  itineraryRevision Int
+  snapshot String
+  createdAt DateTime @default(now())
+  @@index([applicationId])
+}
+
+model BookingProvider {
+  id String @id
+  name String
+  category String
+  enabled Boolean @default(false)
+  verifiedAt DateTime?
+  updatedAt DateTime @updatedAt
+}
+
+// Aggregate counters and short-lived locks only. No chat transcripts are persisted.
+model ConciergeQuota {
+  key       String   @id
+  count     Int      @default(0)
+  expiresAt DateTime
+  @@index([expiresAt])
+}
+
+model ConciergeLease {
+  slot      Int      @id
+  userId    String   @unique
+  requestId String   @unique
+  expiresAt DateTime
+  @@index([expiresAt])
 }

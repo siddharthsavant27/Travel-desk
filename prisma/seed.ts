@@ -1,221 +1,131 @@
 import { PrismaClient, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import fs from "fs";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
 import { REQUIRED_DOCUMENTS } from "../src/lib/prescreening-rules";
 
 const prisma = new PrismaClient();
-
 async function main() {
-  console.log("Seeding TravelDesk database...");
-
-  // 1. Seed Demo Accounts
-  const customerEmail = (process.env.DEMO_CUSTOMER_EMAIL || "customer@harbingergroup.com").toLowerCase();
-  const customerPass = process.env.DEMO_CUSTOMER_PASSWORD || "DemoCustomer2026!";
-
-  const csrEmail = (process.env.DEMO_CSR_EMAIL || "csr@harbingergroup.com").toLowerCase();
-  const csrPass = process.env.DEMO_CSR_PASSWORD || "DemoCSR2026!";
-
-  const adminEmail = (process.env.DEMO_ADMIN_EMAIL || "admin@harbingergroup.com").toLowerCase();
-  const adminPass = process.env.DEMO_ADMIN_PASSWORD || "DemoAdmin2026!";
-
-  const [customerHash, csrHash, adminHash] = await Promise.all([
-    bcrypt.hash(customerPass, 10),
-    bcrypt.hash(csrPass, 10),
-    bcrypt.hash(adminPass, 10),
-  ]);
-
-  const demoCustomer = await prisma.user.upsert({
-    where: { email: customerEmail },
-    update: {
-      passwordHash: customerHash,
-      name: "Demo Customer",
-      role: Role.CUSTOMER,
-      isActive: true,
-      mustChangePassword: false,
-    },
-    create: {
-      email: customerEmail,
-      passwordHash: customerHash,
-      name: "Demo Customer",
-      role: Role.CUSTOMER,
-      isActive: true,
-      mustChangePassword: false,
-    },
-  });
-
-  const demoCsr = await prisma.user.upsert({
-    where: { email: csrEmail },
-    update: {
-      passwordHash: csrHash,
-      name: "Demo CSR",
-      role: Role.CSR,
-      isActive: true,
-      mustChangePassword: false,
-    },
-    create: {
-      email: csrEmail,
-      passwordHash: csrHash,
-      name: "Demo CSR",
-      role: Role.CSR,
-      isActive: true,
-      mustChangePassword: false,
-    },
-  });
-
-  const demoAdmin = await prisma.user.upsert({
-    where: { email: adminEmail },
-    update: {
-      passwordHash: adminHash,
-      name: "Demo Admin",
-      role: Role.ADMIN,
-      isActive: true,
-      mustChangePassword: false,
-    },
-    create: {
-      email: adminEmail,
-      passwordHash: adminHash,
-      name: "Demo Admin",
-      role: Role.ADMIN,
-      isActive: true,
-      mustChangePassword: false,
-    },
-  });
-
-  console.log(`Seeded demo accounts:
-  - Customer: ${demoCustomer.email}
-  - CSR:      ${demoCsr.email}
-  - Admin:    ${demoAdmin.email}`);
-
-  // 2. Seed Starter Question Bank
-  const questionsFilePath = path.join(process.cwd(), "src", "data", "question-bank.json");
-  if (fs.existsSync(questionsFilePath)) {
-    const questionsRaw = fs.readFileSync(questionsFilePath, "utf-8");
-    const questionsData = JSON.parse(questionsRaw);
-
-    for (const q of questionsData) {
-      await prisma.question.upsert({
-        where: { key: q.key },
-        update: {
-          visaType: q.visaType,
-          stepCategory: q.stepCategory,
-          orderIndex: q.orderIndex,
-          questionText: q.questionText,
-          helpText: q.helpText,
-          responseType: q.responseType,
-          options: q.options,
-          isMandatory: q.isMandatory ?? true,
-          flagTriggerRule: q.flagTriggerRule,
-          isActive: true,
-        },
+  if (
+    process.env.NEXT_PUBLIC_DEMO_MODE === "true" &&
+    process.env.NODE_ENV !== "production"
+  ) {
+    for (const [role, prefix, fallback] of [
+      [Role.CUSTOMER, "CUSTOMER", "DemoCustomer2026!"],
+      [Role.CSR, "CSR", "DemoCSR2026!"],
+      [Role.ADMIN, "ADMIN", "DemoAdmin2026!"],
+    ] as const) {
+      const email = (
+        process.env[`DEMO_${prefix}_EMAIL`] ||
+        `${role.toLowerCase()}@harbingergroup.com`
+      ).toLowerCase();
+      await prisma.user.upsert({
+        where: { email },
+        update: {},
         create: {
-          key: q.key,
-          visaType: q.visaType,
-          stepCategory: q.stepCategory,
-          orderIndex: q.orderIndex,
-          questionText: q.questionText,
-          helpText: q.helpText,
-          responseType: q.responseType,
-          options: q.options,
-          isMandatory: q.isMandatory ?? true,
-          flagTriggerRule: q.flagTriggerRule,
-          isActive: true,
+          email,
+          name: `Demo ${role === "CSR" ? "Reviewer" : role[0] + role.slice(1).toLowerCase()}`,
+          role,
+          passwordHash: await bcrypt.hash(
+            process.env[`DEMO_${prefix}_PASSWORD`] || fallback,
+            10,
+          ),
         },
       });
     }
-    console.log(`Seeded ${questionsData.length} starter questions (Starter set, pending CSR team approval).`);
+    console.log(
+      "Local demo accounts are available. Existing accounts and passwords were preserved.",
+    );
+  } else if (
+    !(await prisma.user.count({ where: { role: Role.ADMIN, isActive: true } }))
+  ) {
+    const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+    const password = process.env.ADMIN_PASSWORD;
+    if (
+      !email ||
+      !/^[^@\s]+@harbingergroup\.com$/.test(email) ||
+      !password ||
+      password.length < 12 ||
+      Buffer.byteLength(password) > 72
+    ) {
+      throw new Error(
+        "For a non-demo installation, set ADMIN_EMAIL and a 12+ character ADMIN_PASSWORD before setup.",
+      );
+    }
+    await prisma.user.create({
+      data: {
+        email,
+        name: process.env.ADMIN_NAME || "TravelDesk Administrator",
+        role: Role.ADMIN,
+        passwordHash: await bcrypt.hash(password, 12),
+        mustChangePassword: true,
+      },
+    });
+    console.log(
+      "Initial administrator created; a password change is required at first sign-in.",
+    );
   }
-
-  // 3. Seed Canonical Document Requirements
-  for (const [vType, docList] of Object.entries(REQUIRED_DOCUMENTS)) {
-    for (let i = 0; i < docList.length; i++) {
-      const doc = docList[i];
+  const questions = JSON.parse(
+    fs.readFileSync(
+      path.join(process.cwd(), "src/data/question-bank.json"),
+      "utf8",
+    ),
+  );
+  for (const q of questions) {
+    await prisma.question.upsert({
+      where: { key: q.key },
+      update: {},
+      create: {
+        key: q.key,
+        visaType: q.visaType,
+        stepCategory: q.stepCategory,
+        orderIndex: q.orderIndex,
+        questionText: q.questionText,
+        helpText: q.helpText ?? null,
+        responseType: q.responseType,
+        options: q.options ?? null,
+        isMandatory: q.isMandatory ?? true,
+        flagTriggerRule: q.flagTriggerRule ?? null,
+      },
+    });
+  }
+  for (const [visaType, documents] of Object.entries(REQUIRED_DOCUMENTS)) {
+    for (const [index, doc] of documents.entries()) {
       await prisma.documentRequirement.upsert({
-        where: {
-          visaType_documentType: {
-            visaType: vType,
-            documentType: doc.type,
-          },
-        },
-        update: {
-          label: doc.label,
-          description: doc.description,
-          isMandatory: true,
-          orderIndex: i + 1,
-        },
+        where: { visaType_documentType: { visaType, documentType: doc.type } },
+        update: {},
         create: {
-          visaType: vType,
+          visaType,
           documentType: doc.type,
           label: doc.label,
           description: doc.description,
           isMandatory: true,
-          orderIndex: i + 1,
+          orderIndex: index,
         },
       });
     }
   }
-  console.log("Seeded canonical DocumentRequirement records.");
-
-  // 4. Optional Demo Cases (OFF by default, gated by SEED_DEMO_CASES=true)
-  if (process.env.SEED_DEMO_CASES === "true") {
-    console.log("SEED_DEMO_CASES=true detected. Seeding tagged demo applications...");
-    const existingApp = await prisma.application.findFirst({
-      where: { userId: demoCustomer.id },
+  for (const provider of [
+    { id: "skyscanner", name: "Skyscanner", category: "flight" },
+    { id: "booking", name: "Booking.com", category: "hotel" },
+  ]) {
+    await prisma.bookingProvider.upsert({
+      where: { id: provider.id },
+      update: {},
+      create: {
+        ...provider,
+        enabled: true,
+        verifiedAt: new Date("2026-10-08T00:00:00.000Z"),
+      },
     });
-
-    if (!existingApp) {
-      const today = new Date();
-      const departure = new Date(today);
-      departure.setDate(departure.getDate() + 14);
-      const returnDate = new Date(departure);
-      returnDate.setDate(returnDate.getDate() + 14);
-
-      const demoApp = await prisma.application.create({
-        data: {
-          caseNumber: "TD-DEMO-001",
-          userId: demoCustomer.id,
-          assignedCsrId: demoCsr.id,
-          visaType: "SCHENGEN_BUSINESS",
-          destinationCountry: "Germany",
-          travelPurpose: "Client Consultations & Contract Negotiations",
-          departureDate: departure,
-          returnDate: returnDate,
-          status: "IN_REVIEW",
-          readinessScore: 75,
-          readinessDetails: JSON.stringify({
-            mandatoryQuestionsAnswered: 4,
-            totalMandatoryQuestions: 4,
-            requiredDocsReceived: 2,
-            totalRequiredDocs: 4,
-            calculation: "50% (Questions) + 25% (Documents) = 75%",
-          }),
-        },
-      });
-
-      // Add a warning flag
-      await prisma.caseFlag.create({
-        data: {
-          applicationId: demoApp.id,
-          flagType: "DISCLOSURE",
-          severity: "WARNING",
-          code: "FLAG_PRIOR_REFUSAL",
-          message: "Applicant reported prior visa refusal in 2023. Explanation document submitted for CSR review.",
-          resolved: false,
-        },
-      });
-
-      console.log(`Created demo application: ${demoApp.caseNumber}`);
-    }
   }
-
-  console.log("Database seed completed successfully.");
+  console.log(
+    "Question bank, document requirements and booking providers are ready.",
+  );
 }
-
 main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
   })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .finally(() => prisma.$disconnect());

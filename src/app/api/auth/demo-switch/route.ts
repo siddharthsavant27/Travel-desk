@@ -11,7 +11,7 @@ import {
 
 export async function POST(req: Request) {
   try {
-    if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") {
+    if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true" || process.env.NODE_ENV === "production") {
       return NextResponse.json(
         { error: "Demo switching is disabled." },
         { status: 403 }
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
       where: { email: targetEmail },
     });
 
-    if (!targetUser || !targetUser.isActive) {
+    if (!targetUser || !targetUser.isActive || targetUser.role !== role) {
       return NextResponse.json(
         { error: `Demo account for ${role} not available.` },
         { status: 404 }
@@ -55,6 +55,7 @@ export async function POST(req: Request) {
       name: targetUser.name,
       role: targetUser.role,
       mustChangePassword: targetUser.mustChangePassword,
+      sessionVersion: targetUser.sessionVersion,
       lastActive: Date.now(),
     });
 

@@ -20,7 +20,7 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [demoNotice, setDemoNotice] = useState<string | null>(null);
 
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true" && process.env.NODE_ENV !== "production";
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,10 +41,11 @@ function LoginForm() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmedEmail, password }),
+        body: JSON.stringify({ email: trimmedEmail, password, from }),
+        signal: AbortSignal.timeout(20000),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({ error: "The server returned an unexpected response. Please try again." }));
 
       if (!res.ok) {
         if (
@@ -64,9 +65,11 @@ function LoginForm() {
         return;
       }
 
-      window.location.href = from || data.redirectUrl || "/dashboard";
-    } catch {
-      setError("An unexpected network error occurred. Please try again.");
+      window.location.href = data.redirectUrl || "/dashboard";
+    } catch (failure) {
+      setError(failure instanceof Error && failure.name === "TimeoutError"
+        ? "Sign-in took too long. Please try again; the server may still be starting."
+        : "Unable to reach the sign-in service. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -83,27 +86,32 @@ function LoginForm() {
     setError(null);
     setEmailError(false);
     setIsLocked(false);
-    setDemoNotice(`Autofilled credentials for ${roleTitle}`);
+    setDemoNotice(`Signing in as ${roleTitle}…`);
+    setLoading(true);
 
     try {
       const res = await fetch("/api/auth/demo-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role }),
+        body: JSON.stringify({ role, from }),
+        signal: AbortSignal.timeout(20000),
       });
-
+      const data = await res.json().catch(() => ({ error: "The server returned an unexpected response. Please try again." }));
       if (res.ok) {
-        const data = await res.json();
         window.location.href =
-          from ||
           data.redirectUrl ||
           (role === "CUSTOMER" ? "/dashboard" : "/review");
+      } else {
+        setError(data.error || "Unable to sign in to this demo account. Please try again.");
       }
-    } catch {
-      // In case of network glitch, credentials remain in input for manual submit
+    } catch (failure) {
+      setError(failure instanceof Error && failure.name === "TimeoutError"
+        ? "Sign-in took too long. Please try again; the server may still be starting."
+        : "Unable to reach the sign-in service. Please try again.");
+    } finally {
+      setLoading(false);
+      setDemoNotice(null);
     }
-
-    setTimeout(() => setDemoNotice(null), 3500);
   };
 
   return (
@@ -166,6 +174,7 @@ function LoginForm() {
           </div>
 
           {/* State Banners (Alerts) */}
+          {searchParams.get("expired") === "true" && <p role="status" className="rounded-xl border border-amber-200/20 bg-amber-200/10 p-3 text-sm text-amber-100">Your session has ended. Sign in again to continue from where you left off.</p>}
           {/* Temporarily Locked State Banner */}
           {isLocked && (
             <div
@@ -302,6 +311,7 @@ function LoginForm() {
               )}
             </button>
           </form>
+          <Link href="/access-help" className="text-sm text-[#8ce8dc] underline underline-offset-4">Need an account or forgot your password?</Link>
         </main>
 
         {/* Demo Accounts Strip (Below Main Card) */}
@@ -317,6 +327,7 @@ function LoginForm() {
                 <button
                   className="flex flex-col items-center justify-center p-2 rounded-lg bg-[#142032]/60 hover:bg-[#293549] transition-all duration-150 group text-center border border-white/5 hover:border-[#4fdbc8]/30 cursor-pointer"
                   type="button"
+                  disabled={loading}
                   aria-label="Log in as Demo Customer"
                   onClick={() =>
                     handleDemoLogin(
@@ -336,6 +347,7 @@ function LoginForm() {
                 <button
                   className="flex flex-col items-center justify-center p-2 rounded-lg bg-[#142032]/60 hover:bg-[#293549] transition-all duration-150 group text-center border border-white/5 hover:border-[#4fdbc8]/30 cursor-pointer"
                   type="button"
+                  disabled={loading}
                   aria-label="Log in as Demo CSR"
                   onClick={() =>
                     handleDemoLogin(
@@ -355,6 +367,7 @@ function LoginForm() {
                 <button
                   className="flex flex-col items-center justify-center p-2 rounded-lg bg-[#142032]/60 hover:bg-[#293549] transition-all duration-150 group text-center border border-white/5 hover:border-[#4fdbc8]/30 cursor-pointer"
                   type="button"
+                  disabled={loading}
                   aria-label="Log in as Demo Admin"
                   onClick={() =>
                     handleDemoLogin(

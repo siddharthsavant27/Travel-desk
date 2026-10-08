@@ -6,22 +6,27 @@ services:
     container_name: traveldesk_app
     restart: unless-stopped
     ports:
-      - "3001:3000"
+      - "3001:3001"
     environment:
-      - DATABASE_URL=file:/app/prisma/dev.db
-      - SESSION_SECRET=traveldesk-docker-production-session-secret-key-2026
-      - NEXT_PUBLIC_APP_URL=http://localhost:3001
-      - NEXT_PUBLIC_DEMO_MODE=true
-      - DOCUMENT_STORAGE_PATH=/app/uploads/documents
-      - SEED_DEMO_CASES=false
-      - DEMO_CUSTOMER_EMAIL=customer@harbingergroup.com
-      - DEMO_CUSTOMER_PASSWORD=DemoCustomer2026!
-      - DEMO_CSR_EMAIL=csr@harbingergroup.com
-      - DEMO_CSR_PASSWORD=DemoCSR2026!
-      - DEMO_ADMIN_EMAIL=admin@harbingergroup.com
-      - DEMO_ADMIN_PASSWORD=DemoAdmin2026!
+      DATABASE_URL: file:/app/data/dev.db
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in .env}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3001}
+      NEXT_PUBLIC_DEMO_MODE: "false"
+      DOCUMENT_STORAGE_PATH: /app/uploads/documents
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@harbingergroup.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_NAME: ${ADMIN_NAME:-TravelDesk Administrator}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
+      GROQ_GUARD_MODEL: ${GROQ_GUARD_MODEL:-openai/gpt-oss-safeguard-20b}
+      AI_CONCIERGE_ENABLED: ${AI_CONCIERGE_ENABLED:-true}
+      AI_CONCIERGE_TIMEOUT_MS: ${AI_CONCIERGE_TIMEOUT_MS:-45000}
+      AI_CONCIERGE_MAX_COMPLETION_TOKENS: ${AI_CONCIERGE_MAX_COMPLETION_TOKENS:-2048}
+      AI_CONCIERGE_USER_TURNS_PER_MINUTE: ${AI_CONCIERGE_USER_TURNS_PER_MINUTE:-10}
+      AI_CONCIERGE_USER_TURNS_PER_DAY: ${AI_CONCIERGE_USER_TURNS_PER_DAY:-100}
+      AI_CONCIERGE_SITE_TURNS_PER_DAY: ${AI_CONCIERGE_SITE_TURNS_PER_DAY:-1000}
     volumes:
-      - traveldesk_db:/app/prisma
+      - traveldesk_db:/app/data
       - traveldesk_documents:/app/uploads/documents
 
 volumes:

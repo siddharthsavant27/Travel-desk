@@ -186,7 +186,8 @@ export function evaluateAnswerFlag(
   questionKey: string,
   answerValue: string,
   departureDate?: Date | null,
-  returnDate?: Date | null
+  returnDate?: Date | null,
+  visaType = "SCHENGEN_BUSINESS"
 ): FlagEvaluationResult {
   // Flag 1: Schengen local employment
   if (questionKey === "schengen_purpose" && answerValue === "local_employment") {
@@ -249,7 +250,10 @@ export function evaluateAnswerFlag(
         };
       }
 
-      if (expiry < minSchengenExpiry) {
+      if (visaType.startsWith("US") && returnDate && expiry < returnDate) {
+        return { hasFlag: true, code: "FLAG_PASSPORT_EXPIRING", severity: "CRITICAL", message: "Passport expires before the planned return date. Ask your travel coordinator to review passport validity before filing." };
+      }
+      if (visaType === "SCHENGEN_BUSINESS" && expiry < minSchengenExpiry) {
         return {
           hasFlag: true,
           code: "FLAG_PASSPORT_EXPIRING",
@@ -261,7 +265,7 @@ export function evaluateAnswerFlag(
   }
 
   // Flag 6: Passport 10-year rule check
-  if (questionKey === "passport_issue_date" && answerValue) {
+  if (questionKey === "passport_issue_date" && answerValue && !visaType.startsWith("US")) {
     const issueDate = new Date(answerValue);
     if (!isNaN(issueDate.getTime())) {
       const tenYearsAgo = new Date();

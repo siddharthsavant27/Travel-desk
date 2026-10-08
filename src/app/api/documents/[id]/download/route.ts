@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionFromRequest, logAuditEvent } from "@/lib/auth";
 import fs from "fs";
+import path from "node:path";
+import { UPLOAD_DIR } from "@/lib/prescreening";
 
 export async function GET(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const session = await getSessionFromRequest(req);
@@ -23,7 +25,10 @@ export async function GET(
     });
 
     if (!document) {
-      return NextResponse.json({ error: "Document not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Document not found" },
+        { status: 404 },
+      );
     }
 
     // Access check: Application owner or CSR/Admin
@@ -32,20 +37,27 @@ export async function GET(
 
     if (!isOwner && !isStaff) {
       return NextResponse.json(
-        { error: "Forbidden: You are not authorized to download this document." },
-        { status: 403 }
+        {
+          error: "Forbidden: You are not authorized to download this document.",
+        },
+        { status: 403 },
       );
     }
 
     // Verify file exists on disk
-    if (!fs.existsSync(/*turbopackIgnore: true*/ document.filePath)) {
+    const root = path.resolve(UPLOAD_DIR);
+    const resolvedPath = path.resolve(document.filePath);
+    if (
+      !resolvedPath.startsWith(root + path.sep) ||
+      !fs.existsSync(/*turbopackIgnore: true*/ resolvedPath)
+    ) {
       return NextResponse.json(
         { error: "File not found on storage volume." },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
-    const fileBuffer = await fs.promises.readFile(document.filePath);
+    const fileBuffer = await fs.promises.readFile(resolvedPath);
 
     await logAuditEvent({
       actorId: session.userId,
@@ -58,16 +70,25 @@ export async function GET(
     });
 
     const response = new NextResponse(fileBuffer);
-    response.headers.set("Content-Type", document.mimeType || "application/octet-stream");
+    response.headers.set(
+      "Content-Type",
+      document.mimeType || "application/octet-stream",
+    );
     response.headers.set(
       "Content-Disposition",
-      `attachment; filename="${encodeURIComponent(document.originalFilename)}"`
+      `${new URL(req.url).searchParams.get("preview") === "1" ? "inline" : "attachment"}; filename="${encodeURIComponent(document.originalFilename)}"`,
     );
     response.headers.set("Content-Length", document.fileSizeBytes.toString());
+    response.headers.set("X-Content-Type-Options", "nosniff");
+    response.headers.set("Cache-Control", "private, no-store");
+    response.headers.set("Content-Security-Policy", "sandbox");
 
     return response;
   } catch (err) {
     console.error("Error downloading document:", err);
-    return NextResponse.json({ error: "Failed to download document" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to download document" },
+      { status: 500 },
+    );
   }
 }
